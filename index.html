@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diario Privato</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    
+    <style>
+        /* --- STILI BASE (Uguali a prima) --- */
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #dcddde;
+            --header-bg: #252526;
+            --accent-color: #7c4dff;
+            --editor-bg: #1e1e1e;
+            --toolbar-bg: #2d2d2d;
+            --border-color: #444;
+            --modal-bg: #333;
+        }
+        body.light-mode {
+            --bg-color: #f5f5f5;
+            --text-color: #333;
+            --header-bg: #fff;
+            --accent-color: #6200ea;
+            --editor-bg: #fff;
+            --toolbar-bg: #eee;
+            --border-color: #ccc;
+            --modal-bg: #fff;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden;
+            transition: background-color 0.3s;
+        }
+
+        /* --- SCHERMATA LOGIN --- */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 999;
+        }
+        .login-btn {
+            background-color: white; color: #444; border: none; padding: 12px 24px;
+            border-radius: 4px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px;
+            font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .login-btn:hover { background-color: #f1f1f1; }
+        .login-logo { width: 18px; height: 18px; }
+
+        /* --- APP CONTENUTO (Nascosto inizialmente) --- */
+        #app-content { display: none; flex-direction: column; height: 100%; }
+        
+        /* HEADER & TOOLBAR */
+        header {
+            background-color: var(--header-bg); padding: 10px 15px; border-bottom: 2px solid var(--accent-color);
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+        h1 { margin: 0; font-size: 1.1rem; color: var(--accent-color); }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-pic { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--accent-color); }
+        .icon-btn { background:none; border:none; color:var(--text-color); cursor:pointer; font-size:1.5rem; display:flex; align-items:center; }
+
+        .toolbar {
+            background-color: var(--toolbar-bg); padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid var(--border-color); overflow-x: auto;
+        }
+        .tool-btn {
+            background: none; border: 1px solid var(--border-color); color: var(--text-color); padding: 5px 10px; border-radius: 4px; cursor: pointer;
+        }
+        .tool-btn:hover { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
+
+        /* EDITOR */
+        main { flex-grow: 1; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
+        #editor {
+            flex-grow: 1; padding: 20px; outline: none; font-size: 16px; line-height: 1.6;
+            background-color: var(--editor-bg); color: var(--text-color); white-space: pre-wrap; padding-bottom: 80px;
+        }
+        #editor hr { border: 0; border-top: 1px solid var(--accent-color); margin: 20px 0; opacity: 0.5; }
+        #editor mark { background-color: #ffeb3b; color: black; }
+
+        /* IMPOSTAZIONI */
+        #settings-modal {
+            position: fixed; top: 60px; right: 10px; background-color: var(--modal-bg);
+            border: 1px solid var(--border-color); padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: none; z-index: 200; width: 200px;
+        }
+        #settings-modal.show { display: block; }
+        .setting-item { margin-bottom: 15px; }
+        select, button.theme-toggle { width: 100%; padding: 8px; background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h1 style="margin-bottom: 20px; font-size: 2rem;">Diario Privato</h1>
+        <button class="login-btn" onclick="login()">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="login-logo">
+            Accedi con Google
+        </button>
+        <p id="login-error" style="color: red; margin-top: 20px; font-size: 0.9rem;"></p>
+    </div>
+
+    <div id="app-content">
+        <header>
+            <h1 id="app-title">Diario</h1>
+            <div class="user-info">
+                <span id="status" style="font-size:0.7rem; color:#aaa;">Sync...</span>
+                <img id="user-pic" class="user-pic" src="" alt="User">
+                <button class="icon-btn" onclick="toggleSettings()"><span class="material-icons-round">settings</span></button>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <button class="tool-btn" onclick="formatDoc('bold')"><span class="material-icons-round">format_bold</span></button>
+            <button class="tool-btn" onclick="formatDoc('italic')"><span class="material-icons-round">format_italic</span></button>
+            <button class="tool-btn" onclick="formatDoc('hiliteColor', 'yellow')"><span class="material-icons-round">border_color</span></button>
+            <button class="tool-btn" onclick="formatDoc('fontSize', '5')"><span class="material-icons-round">text_increase</span></button>
+            <button class="tool-btn" onclick="formatDoc('insertHorizontalRule')"><span class="material-icons-round">horizontal_rule</span></button>
+            <button class="tool-btn" onclick="logout()" style="margin-left:auto; border-color: #ff4444; color: #ff4444;"><span class="material-icons-round">logout</span></button>
+        </div>
+
+        <div id="settings-modal">
+            <div class="setting-item"><label>Tema</label><button class="theme-toggle" onclick="toggleTheme()">Cambia Tema 🌓</button></div>
+            <div class="setting-item">
+                <label>Font</label>
+                <select id="font-selector" onchange="changeFont()">
+                    <option value="'Segoe UI', sans-serif">Moderno</option>
+                    <option value="'Georgia', serif">Classico</option>
+                    <option value="'Courier New', monospace">Typewriter</option>
+                </select>
+            </div>
+            <div style="text-align:right; font-size:0.8rem; color:#777;"><span id="word-count">0 parole</span></div>
+        </div>
+
+        <main>
+            <div id="editor" contenteditable="true"></div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // --- INCOLLA QUI LA TUA CONFIG DI FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCYndAl9MKtZDTK5ivbtmaqDa-r6vEe6SM",
+            authDomain: "diario-app-fc5fe.firebaseapp.com",
+            projectId: "diario-app-fc5fe",
+            storageBucket: "diario-app-fc5fe.firebasestorage.app",
+            messagingSenderId: "314736217548",
+            appId: "1:314736217548:web:010cc701630286c3f16169"
+        };
+        // ---------------------------------------------
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // Variabili globali
+        let currentUser = null;
+        let unsubscribeDoc = null; // Per interrompere l'ascolto quando fai logout
+
+        // Elementi UI
+        const loginScreen = document.getElementById('login-screen');
+        const appContent = document.getElementById('app-content');
+        const editor = document.getElementById('editor');
+        const statusDisplay = document.getElementById('status');
+        const userPic = document.getElementById('user-pic');
+
+        // --- GESTIONE LOGIN / LOGOUT ---
+        window.login = () => {
+            signInWithPopup(auth, provider).catch((error) => {
+                console.error("Errore Login:", error);
+                document.getElementById('login-error').innerText = error.message;
+            });
+        };
+
+        window.logout = () => {
+            signOut(auth).then(() => {
+                location.reload(); // Ricarica la pagina per pulire tutto
+            });
+        };
+
+        // Ascolta se l'utente è loggato o no
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // UTENTE LOGGATO
+                currentUser = user;
+                loginScreen.style.display = 'none';
+                appContent.style.display = 'flex';
+                userPic.src = user.photoURL; // Mostra foto profilo Google
+                
+                // Carica il diario PERSONALE di questo utente
+                loadUserDiary(user.uid);
+            } else {
+                // UTENTE NON LOGGATO
+                currentUser = null;
+                loginScreen.style.display = 'flex';
+                appContent.style.display = 'none';
+            }
+        });
+
+        // --- FUNZIONI DIARIO ---
+        function getCurrentDateTime() {
+            const now = new Date();
+            const options = { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+            return `<br><hr><div style="color: var(--accent-color); font-weight:bold; margin-top:10px;">🗓️ ${now.toLocaleDateString('it-IT', options)}</div><br>`;
+        }
+
+        function loadUserDiary(userId) {
+            // Nota: Il documento ora si chiama come l'ID dell'utente!
+            const docRef = doc(db, "diario", userId);
+
+            // Usa onSnapshot per aggiornamenti in tempo reale (se scrivi da PC vedi su mobile subito)
+            unsubscribeDoc = onSnapshot(docRef, (docSnap) => {
+                // Evita di sovrascrivere se stiamo scrivendo noi stessi (controllo base)
+                if (document.activeElement === editor) return;
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // Se l'editor è vuoto (primo caricamento), riempiamo
+                    if (editor.innerHTML.trim() === "") {
+                        editor.innerHTML = data.htmlContent + getCurrentDateTime();
+                        placeCaretAtEnd(editor);
+                    }
+                } else {
+                    // Primo accesso assoluto per questo utente
+                    editor.innerHTML = "Benvenuto nel tuo diario personale." + getCurrentDateTime();
+                    saveToCloud(); // Crea subito il file
+                }
+                updateWordCount();
+                statusDisplay.innerText = "Sincronizzato";
+                statusDisplay.style.color = "#4caf50";
+            }, (error) => {
+                console.error("Errore lettura:", error);
+                statusDisplay.innerText = "Errore Accesso";
+                statusDisplay.style.color = "red";
+            });
+        }
+
+        // Salvataggio
+        let timeout = null;
+        editor.addEventListener('input', () => {
+            statusDisplay.innerText = "Scrivendo...";
+            statusDisplay.style.color = "#ffeb3b";
+            updateWordCount();
+            
+            clearTimeout(timeout);
+            timeout = setTimeout(saveToCloud, 1500);
+        });
+
+        async function saveToCloud() {
+            if (!currentUser) return;
+            try {
+                const docRef = doc(db, "diario", currentUser.uid);
+                await setDoc(docRef, {
+                    htmlContent: editor.innerHTML,
+                    textContent: editor.innerText,
+                    ultimoAggiornamento: new Date(),
+                    userEmail: currentUser.email // Utile per debug
+                }, { merge: true }); // merge: true non cancella campi extra se ce ne fossero
+                statusDisplay.innerText = "Salvato";
+                statusDisplay.style.color = "#4caf50";
+            } catch (e) {
+                console.error(e);
+                statusDisplay.innerText = "Errore Save";
+                statusDisplay.style.color = "red";
+            }
+        }
+
+        // --- HELPER FUNCTIONS (Formattazione, Tema, ecc.) ---
+        window.formatDoc = (cmd, value=null) => { document.execCommand(cmd, false, value); editor.focus(); };
+        window.toggleSettings = () => { document.getElementById('settings-modal').classList.toggle('show'); };
+        window.toggleTheme = () => {
+            document.body.classList.toggle('light-mode');
+            localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+        };
+        window.changeFont = () => {
+            const font = document.getElementById('font-selector').value;
+            document.body.style.fontFamily = font;
+            localStorage.setItem('font', font);
+        };
+        
+        function updateWordCount() {
+            const text = editor.innerText.trim();
+            document.getElementById('word-count').innerText = `${text ? text.split(/\s+/).length : 0} parole`;
+        }
+        function placeCaretAtEnd(el) {
+            el.focus();
+            if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
+                var range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+                var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+            }
+        }
+        
+        // Carica preferenze all'avvio
+        if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+        if (localStorage.getItem('font')) {
+            document.body.style.fontFamily = localStorage.getItem('font');
+            document.getElementById('font-selector').value = localStorage.getItem('font');
+        }
+    </script>
+</body>
+</html>
