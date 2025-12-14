@@ -2,307 +2,556 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Diario Privato</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+    <title>GLP V9.0 Dynamic</title>
+    <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    
+
     <style>
-        /* --- STILI BASE (Uguali a prima) --- */
-        :root {
-            --bg-color: #1e1e1e;
-            --text-color: #dcddde;
-            --header-bg: #252526;
-            --accent-color: #7c4dff;
-            --editor-bg: #1e1e1e;
-            --toolbar-bg: #2d2d2d;
-            --border-color: #444;
-            --modal-bg: #333;
-        }
-        body.light-mode {
-            --bg-color: #f5f5f5;
-            --text-color: #333;
-            --header-bg: #fff;
-            --accent-color: #6200ea;
-            --editor-bg: #fff;
-            --toolbar-bg: #eee;
-            --border-color: #ccc;
-            --modal-bg: #fff;
-        }
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Segoe UI', sans-serif;
-            display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden;
-            transition: background-color 0.3s;
-        }
-
-        /* --- SCHERMATA LOGIN --- */
-        #login-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: var(--bg-color);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 999;
-        }
-        .login-btn {
-            background-color: white; color: #444; border: none; padding: 12px 24px;
-            border-radius: 4px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px;
-            font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .login-btn:hover { background-color: #f1f1f1; }
-        .login-logo { width: 18px; height: 18px; }
-
-        /* --- APP CONTENUTO (Nascosto inizialmente) --- */
-        #app-content { display: none; flex-direction: column; height: 100%; }
+        :root { --bg: #121212; --card: #1e1e1e; --text: #ffffff; --text-sec: #b0b0b0; --success: #4caf50; --danger: #ef5350; --theme-color: #ffca28; --theme-glow: rgba(255, 202, 40, 0.3); --toast-bg: #333; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; padding-bottom: 120px; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background 0.3s ease; overflow-x: hidden; }
         
-        /* HEADER & TOOLBAR */
-        header {
-            background-color: var(--header-bg); padding: 10px 15px; border-bottom: 2px solid var(--accent-color);
-            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
-        }
-        h1 { margin: 0; font-size: 1.1rem; color: var(--accent-color); }
+        .identity-bar { background: var(--card); padding: 12px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #333; margin-bottom: 20px; position: relative; }
         .user-info { display: flex; align-items: center; gap: 10px; }
-        .user-pic { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--accent-color); }
-        .icon-btn { background:none; border:none; color:var(--text-color); cursor:pointer; font-size:1.5rem; display:flex; align-items:center; }
+        .avatar { width: 35px; height: 35px; background: var(--theme-color); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .username { font-weight: bold; color: var(--theme-color); }
+        .settings-btn { background: transparent; border: none; color: #666; cursor: pointer; padding: 5px; }
+        .offline-badge { display: none; position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; font-size: 0.6em; padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 2px solid var(--bg); }
+        body.offline .offline-badge { display: block; } body.offline .identity-bar { border-color: var(--danger); }
 
-        .toolbar {
-            background-color: var(--toolbar-bg); padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid var(--border-color); overflow-x: auto;
-        }
-        .tool-btn {
-            background: none; border: 1px solid var(--border-color); color: var(--text-color); padding: 5px 10px; border-radius: 4px; cursor: pointer;
-        }
-        .tool-btn:hover { background-color: var(--accent-color); color: white; border-color: var(--accent-color); }
+        .dashboard-top { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
+        .progress-container { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
+        .progress-ring__circle { transition: stroke-dashoffset 0.5s ease-in-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; font-size: 1.1em; color: var(--theme-color); }
+        .scoreboard-mini { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .score-row { background: var(--card); padding: 10px 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; cursor: pointer; transition: 0.2s; }
+        .score-row.active { border-color: var(--theme-color); background: linear-gradient(90deg, var(--card), #2a2a2a); }
+        .score-row span { font-size: 0.9em; color: #888; } .score-row strong { font-size: 1.2em; color: var(--text); }
 
-        /* EDITOR */
-        main { flex-grow: 1; position: relative; overflow-y: auto; display: flex; flex-direction: column; }
-        #editor {
-            flex-grow: 1; padding: 20px; outline: none; font-size: 16px; line-height: 1.6;
-            background-color: var(--editor-bg); color: var(--text-color); white-space: pre-wrap; padding-bottom: 80px;
-        }
-        #editor hr { border: 0; border-top: 1px solid var(--accent-color); margin: 20px 0; opacity: 0.5; }
-        #editor mark { background-color: #ffeb3b; color: black; }
+        .chart-box { background: var(--card); padding: 10px; border-radius: 16px; height: 220px; margin-bottom: 20px; }
+        .date-nav { display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 10px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #333; }
+        .date-btn { background: transparent; border: none; color: var(--text); font-size: 1.5em; padding: 0 15px; cursor: pointer; }
+        .current-date { font-weight: bold; font-size: 1.1em; color: var(--theme-color); text-transform: uppercase; letter-spacing: 1px;}
 
-        /* IMPOSTAZIONI */
-        #settings-modal {
-            position: fixed; top: 60px; right: 10px; background-color: var(--modal-bg);
-            border: 1px solid var(--border-color); padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: none; z-index: 200; width: 200px;
-        }
-        #settings-modal.show { display: block; }
-        .setting-item { margin-bottom: 15px; }
-        select, button.theme-toggle { width: 100%; padding: 8px; background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 4px; }
+        h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px;}
+        .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #333; transition: 0.2s; position: relative; }
+        .item.done { border-left-color: var(--theme-color); background: #1a1a1a; opacity: 0.7; } .item.done h3 { text-decoration: line-through; color: #666; }
+        .vals { font-size: 0.8em; color: #888; margin-top: 4px; } .plus { color: var(--success); } .minus { color: var(--danger); }
+        
+        /* ACCORDION (TENDINA) */
+        .accordion { background: #252525; color: #888; cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 0.9em; border-radius: 12px; display: flex; justify-content: space-between; margin-top: 10px; box-sizing: border-box;}
+        .panel { padding: 0 5px; display: none; overflow: hidden; margin-top: 10px; }
+        .panel.show { display: block; }
+        .future-tag { background: #333; font-size: 0.7em; padding: 2px 8px; border-radius: 4px; color: #aaa; margin-left: 8px;}
+
+        .checkbox-wrapper { position: relative; width: 30px; height: 30px; }
+        .check { appearance: none; width: 100%; height: 100%; border: 2px solid #555; border-radius: 8px; background: transparent; transition: 0.2s; cursor: pointer;}
+        .check:checked { background: var(--theme-color); border-color: var(--theme-color); }
+        .check:checked::after { content: '✓'; position: absolute; color: #000; font-size: 20px; font-weight: bold; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .check:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        #toast { visibility: hidden; min-width: 250px; background-color: var(--toast-bg); color: #fff; text-align: center; border-radius: 50px; padding: 12px 20px; position: fixed; z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: 500; font-size: 0.9em; border: 1px solid #444; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; bottom: 100px; }
+        @keyframes fadein { from {bottom: 30px; opacity: 0;} to {bottom: 100px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 100px; opacity: 1;} to {bottom: 30px; opacity: 0;} }
+        .fab { position: fixed; bottom: 30px; right: 25px; width: 60px; height: 60px; background: var(--theme-color); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px var(--theme-glow); z-index: 50; font-size: 30px; cursor: pointer; transition: transform 0.1s; }
+        .fab:active { transform: scale(0.9); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
+        .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; }
+        input, select.full { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box;}
+        .btn-main { width: 100%; background: var(--theme-color); color: #000; padding: 12px; border-radius: 10px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer;}
+        .btn-sec { width: 100%; background: transparent; color: #888; padding: 10px; border: none; margin-top: 5px; cursor: pointer;}
+        .btn-danger { width: 100%; background: #2a1a1a; color: var(--danger); border: 1px solid var(--danger); padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold; cursor: pointer;}
+        .version-tag { position: fixed; bottom: 10px; right: 10px; font-size: 0.7em; color: #444; z-index: 40; font-weight: bold; opacity: 0.5; }
     </style>
 </head>
 <body>
+    <div class="version-tag">GLP V9.0 Dynamic</div>
+    <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
-    <div id="login-screen">
-        <h1 style="margin-bottom: 20px; font-size: 2rem;">Diario Privato</h1>
-        <button class="login-btn" onclick="login()">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" class="login-logo">
-            Accedi con Google
-        </button>
-        <p id="login-error" style="color: red; margin-top: 20px; font-size: 0.9rem;"></p>
+    <div class="identity-bar">
+        <div class="offline-badge">OFFLINE</div>
+        <div class="user-info"><div class="avatar" id="avatar-initial">F</div><div class="username" id="username-display">Flavio</div></div>
+        <button class="settings-btn" onclick="document.getElementById('settingsModal').style.display='flex'"><span class="material-icons-round">settings</span></button>
     </div>
 
-    <div id="app-content">
-        <header>
-            <h1 id="app-title">Diario</h1>
-            <div class="user-info">
-                <span id="status" style="font-size:0.7rem; color:#aaa;">Sync...</span>
-                <img id="user-pic" class="user-pic" src="" alt="User">
-                <button class="icon-btn" onclick="toggleSettings()"><span class="material-icons-round">settings</span></button>
-            </div>
-        </header>
+    <div class="dashboard-top">
+        <div class="progress-container">
+            <svg class="progress-ring" width="100" height="100"><circle stroke="#2a2a2a" stroke-width="8" fill="transparent" r="42" cx="50" cy="50"/><circle id="prog-circle" class="progress-ring__circle" stroke="var(--theme-color)" stroke-width="8" fill="transparent" r="42" cx="50" cy="50" stroke-dasharray="263" stroke-dashoffset="263" stroke-linecap="round"/></svg>
+            <div class="progress-text" id="prog-text">0%</div>
+        </div>
+        <div class="scoreboard-mini">
+            <div class="score-row" id="card-flavio" onclick="switchUser('flavio')"><span>Flavio</span><strong id="score-flavio">--</strong></div>
+            <div class="score-row" id="card-simona" onclick="switchUser('simona')"><span>Simona</span><strong id="score-simona">--</strong></div>
+        </div>
+    </div>
 
-        <div class="toolbar">
-            <button class="tool-btn" onclick="formatDoc('bold')"><span class="material-icons-round">format_bold</span></button>
-            <button class="tool-btn" onclick="formatDoc('italic')"><span class="material-icons-round">format_italic</span></button>
-            <button class="tool-btn" onclick="formatDoc('hiliteColor', 'yellow')"><span class="material-icons-round">border_color</span></button>
-            <button class="tool-btn" onclick="formatDoc('fontSize', '5')"><span class="material-icons-round">text_increase</span></button>
-            <button class="tool-btn" onclick="formatDoc('insertHorizontalRule')"><span class="material-icons-round">horizontal_rule</span></button>
-            <button class="tool-btn" onclick="logout()" style="margin-left:auto; border-color: #ff4444; color: #ff4444;"><span class="material-icons-round">logout</span></button>
+    <div class="chart-box"><canvas id="progressChart"></canvas></div>
+
+    <div class="date-nav"><button class="date-btn" onclick="changeDate(-1)">&#8249;</button><span class="current-date" id="dateDisplay">OGGI</span><button class="date-btn" onclick="changeDate(1)">&#8250;</button></div>
+
+    <div id="mainContent">
+        <h2>ABITUDINI DEL GIORNO</h2>
+        <div id="habitList"></div>
+        
+        <button class="accordion" onclick="toggleAccordion()">
+            <span>📅 In Programma</span>
+            <span class="material-icons-round">expand_more</span>
+        </button>
+        <div class="panel" id="upcomingList">
+            <div style="text-align:center; color:#555; padding:10px;">Niente in programma</div>
         </div>
 
-        <div id="settings-modal">
-            <div class="setting-item"><label>Tema</label><button class="theme-toggle" onclick="toggleTheme()">Cambia Tema 🌓</button></div>
-            <div class="setting-item">
-                <label>Font</label>
-                <select id="font-selector" onchange="changeFont()">
-                    <option value="'Segoe UI', sans-serif">Moderno</option>
-                    <option value="'Georgia', serif">Classico</option>
-                    <option value="'Courier New', monospace">Typewriter</option>
+        <h2>ACQUISTI DEL GIORNO</h2>
+        <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
+
+        <h2>NEGOZIO PREMI</h2>
+        <div id="shopList"></div>
+    </div>
+
+    <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
+            <select id="newType" class="full" onchange="toggleInputs()">
+                <option value="habit">Abitudine</option>
+                <option value="reward">Premio</option>
+            </select>
+            <input type="text" id="newName" placeholder="Nome">
+            <div id="habitInputs">
+                <select id="newFrequency" class="full">
+                    <option value="1">Ogni Giorno (Classic)</option>
+                    <option value="3">Ogni 3 Giorni</option>
+                    <option value="7">Settimanale</option>
+                    <option value="30">Mensile</option>
                 </select>
+                <input type="number" id="newReward" placeholder="Punti (+)">
+                <input type="number" id="newPenalty" placeholder="Penalità (-)">
             </div>
-            <div style="text-align:right; font-size:0.8rem; color:#777;"><span id="word-count">0 parole</span></div>
+            <div id="rewardInputs" style="display:none"><input type="number" id="newCost" placeholder="Costo"></div>
+            <button class="btn-main" onclick="addItem()">Salva</button>
+            <button class="btn-sec" onclick="document.getElementById('addModal').style.display='none'">Chiudi</button>
         </div>
+    </div>
 
-        <main>
-            <div id="editor" contenteditable="true"></div>
-        </main>
+    <div id="settingsModal" class="modal">
+        <div class="modal-box" style="text-align:center">
+            <h3>Impostazioni</h3>
+            <hr style="border:1px solid #333; margin:20px 0;">
+            <button class="btn-danger" onclick="hardReset()">☢️ RESET APP</button>
+            <button class="btn-sec" onclick="document.getElementById('settingsModal').style.display='none'">Chiudi</button>
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, arrayUnion } 
+        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- INCOLLA QUI LA TUA CONFIG DI FIREBASE ---
         const firebaseConfig = {
-            apiKey: "AIzaSyCYndAl9MKtZDTK5ivbtmaqDa-r6vEe6SM",
-            authDomain: "diario-app-fc5fe.firebaseapp.com",
-            projectId: "diario-app-fc5fe",
-            storageBucket: "diario-app-fc5fe.firebasestorage.app",
-            messagingSenderId: "314736217548",
-            appId: "1:314736217548:web:010cc701630286c3f16169"
+            apiKey: "AIzaSyA001klzJou17djB76Q-t2eRTKbU9NZoQs",
+            authDomain: "gamification-life-project.firebaseapp.com",
+            projectId: "gamification-life-project",
+            storageBucket: "gamification-life-project.firebasestorage.app",
+            messagingSenderId: "925252547674",
+            appId: "1:925252547674:web:1316a5d96cb54c0a515463"
         };
-        // ---------------------------------------------
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
 
-        // Variabili globali
-        let currentUser = null;
-        let unsubscribeDoc = null; // Per interrompere l'ascolto quando fai logout
+        let currentUser = localStorage.getItem('glp_user') || 'flavio';
+        let globalData = null;
+        let allUsersData = { flavio: null, simona: null };
+        let viewDate = new Date(); 
+        let chartInstance = null;
 
-        // Elementi UI
-        const loginScreen = document.getElementById('login-screen');
-        const appContent = document.getElementById('app-content');
-        const editor = document.getElementById('editor');
-        const statusDisplay = document.getElementById('status');
-        const userPic = document.getElementById('user-pic');
-
-        // --- GESTIONE LOGIN / LOGOUT ---
-        window.login = () => {
-            signInWithPopup(auth, provider).catch((error) => {
-                console.error("Errore Login:", error);
-                document.getElementById('login-error').innerText = error.message;
-            });
-        };
-
-        window.logout = () => {
-            signOut(auth).then(() => {
-                location.reload(); // Ricarica la pagina per pulire tutto
-            });
-        };
-
-        // Ascolta se l'utente è loggato o no
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // UTENTE LOGGATO
-                currentUser = user;
-                loginScreen.style.display = 'none';
-                appContent.style.display = 'flex';
-                userPic.src = user.photoURL; // Mostra foto profilo Google
-                
-                // Carica il diario PERSONALE di questo utente
-                loadUserDiary(user.uid);
-            } else {
-                // UTENTE NON LOGGATO
-                currentUser = null;
-                loginScreen.style.display = 'flex';
-                appContent.style.display = 'none';
-            }
-        });
-
-        // --- FUNZIONI DIARIO ---
-        function getCurrentDateTime() {
-            const now = new Date();
-            const options = { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
-            return `<br><hr><div style="color: var(--accent-color); font-weight:bold; margin-top:10px;">🗓️ ${now.toLocaleDateString('it-IT', options)}</div><br>`;
+        // SWIPE
+        let touchStartX = 0; let touchEndX = 0;
+        document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
+        document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
+        function handleSwipe() {
+            if (touchEndX < touchStartX - 50) { changeDate(1); vibrate('light'); } 
+            if (touchEndX > touchStartX + 50) { changeDate(-1); vibrate('light'); } 
         }
 
-        function loadUserDiary(userId) {
-            // Nota: Il documento ora si chiama come l'ID dell'utente!
-            const docRef = doc(db, "diario", userId);
+        window.addEventListener('online', () => document.body.classList.remove('offline'));
+        window.addEventListener('offline', () => document.body.classList.add('offline'));
 
-            // Usa onSnapshot per aggiornamenti in tempo reale (se scrivi da PC vedi su mobile subito)
-            unsubscribeDoc = onSnapshot(docRef, (docSnap) => {
-                // Evita di sovrascrivere se stiamo scrivendo noi stessi (controllo base)
-                if (document.activeElement === editor) return;
+        applyTheme(currentUser);
+        initApp();
 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    // Se l'editor è vuoto (primo caricamento), riempiamo
-                    if (editor.innerHTML.trim() === "") {
-                        editor.innerHTML = data.htmlContent + getCurrentDateTime();
-                        placeCaretAtEnd(editor);
-                    }
-                } else {
-                    // Primo accesso assoluto per questo utente
-                    editor.innerHTML = "Benvenuto nel tuo diario personale." + getCurrentDateTime();
-                    saveToCloud(); // Crea subito il file
-                }
-                updateWordCount();
-                statusDisplay.innerText = "Sincronizzato";
-                statusDisplay.style.color = "#4caf50";
-            }, (error) => {
-                console.error("Errore lettura:", error);
-                statusDisplay.innerText = "Errore Accesso";
-                statusDisplay.style.color = "red";
-            });
+        async function initApp() {
+            await checkAndCreateUser('flavio');
+            await checkAndCreateUser('simona');
+            startListeners();
         }
 
-        // Salvataggio
-        let timeout = null;
-        editor.addEventListener('input', () => {
-            statusDisplay.innerText = "Scrivendo...";
-            statusDisplay.style.color = "#ffeb3b";
-            updateWordCount();
-            
-            clearTimeout(timeout);
-            timeout = setTimeout(saveToCloud, 1500);
-        });
-
-        async function saveToCloud() {
-            if (!currentUser) return;
+        async function checkAndCreateUser(user) {
+            const ref = doc(db, "users", user);
             try {
-                const docRef = doc(db, "diario", currentUser.uid);
-                await setDoc(docRef, {
-                    htmlContent: editor.innerHTML,
-                    textContent: editor.innerText,
-                    ultimoAggiornamento: new Date(),
-                    userEmail: currentUser.email // Utile per debug
-                }, { merge: true }); // merge: true non cancella campi extra se ce ne fossero
-                statusDisplay.innerText = "Salvato";
-                statusDisplay.style.color = "#4caf50";
-            } catch (e) {
-                console.error(e);
-                statusDisplay.innerText = "Errore Save";
-                statusDisplay.style.color = "red";
-            }
+                const snap = await getDoc(ref);
+                if (!snap.exists()) {
+                    await setDoc(ref, {
+                        score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, lastLogin: new Date().toDateString()
+                    });
+                }
+            } catch (e) { console.error("Err init:", e); }
         }
 
-        // --- HELPER FUNCTIONS (Formattazione, Tema, ecc.) ---
-        window.formatDoc = (cmd, value=null) => { document.execCommand(cmd, false, value); editor.focus(); };
-        window.toggleSettings = () => { document.getElementById('settings-modal').classList.toggle('show'); };
-        window.toggleTheme = () => {
-            document.body.classList.toggle('light-mode');
-            localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
-        };
-        window.changeFont = () => {
-            const font = document.getElementById('font-selector').value;
-            document.body.style.fontFamily = font;
-            localStorage.setItem('font', font);
-        };
-        
-        function updateWordCount() {
-            const text = editor.innerText.trim();
-            document.getElementById('word-count').innerText = `${text ? text.split(/\s+/).length : 0} parole`;
+        function startListeners() {
+            ['flavio', 'simona'].forEach(u => {
+                onSnapshot(doc(db, "users", u), (d) => {
+                    if(d.exists()) {
+                        const userData = d.data();
+                        allUsersData[u] = userData;
+                        document.getElementById(`score-${u}`).innerText = userData.score;
+                        if(u === currentUser) { globalData = userData; renderView(); }
+                        updateMultiChart();
+                    }
+                });
+            });
         }
-        function placeCaretAtEnd(el) {
-            el.focus();
-            if (typeof window.getSelection != "undefined" && typeof document.createRange != "undefined") {
-                var range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
-                var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+
+        window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); renderView(); }
+        function getDateString(date) { return date.toISOString().split('T')[0]; }
+
+        function renderView() {
+            if(!globalData) return;
+            const todayStr = getDateString(new Date());
+            const viewStr = getDateString(viewDate);
+            const displayEl = document.getElementById('dateDisplay');
+            
+            let isToday = (viewStr === todayStr);
+
+            if (isToday) displayEl.innerText = "OGGI";
+            else if (viewStr === getDateString(new Date(Date.now() - 86400000))) displayEl.innerText = "IERI";
+            else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
+
+            const dailyLogs = globalData.dailyLogs || {};
+            const entry = dailyLogs[viewStr];
+            let todaysHabits = [], todaysPurchases = [];
+
+            if (Array.isArray(entry)) { todaysHabits = entry; }
+            else if (entry) { todaysHabits = entry.habits || []; todaysPurchases = entry.purchases || []; }
+
+            const hList = document.getElementById('habitList'); hList.innerHTML = '';
+            const upcomingList = document.getElementById('upcomingList'); upcomingList.innerHTML = '';
+            
+            let dailyTotalPot = 0; let dailyEarned = 0;
+            let visibleCount = 0; let upcomingCount = 0;
+
+            (globalData.habits || []).forEach((h) => {
+                const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+                const isDone = todaysHabits.includes(stableId);
+                const freq = h.frequency || 1; // Default 1 giorno
+                
+                // LOGICA VISIBILITÀ (Solo per OGGI)
+                let isDue = true;
+                let daysLeft = 0;
+
+                if (isToday && freq > 1) {
+                    // Controlla l'ultima volta che è stata fatta (in assoluto, non solo oggi)
+                    // Per farlo in modo preciso, dovremmo scansionare tutto il dailyLogs, ma per performance
+                    // salviamo "lastDone" dentro l'oggetto habit quando viene completata.
+                    // (Implementato nella funzione toggleHabit)
+                    
+                    if (h.lastDone && !isDone) {
+                        const lastDate = new Date(h.lastDone);
+                        const diffTime = Math.abs(new Date(todayStr) - lastDate);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                        
+                        if (diffDays < freq) {
+                            isDue = false;
+                            daysLeft = freq - diffDays;
+                        }
+                    }
+                }
+
+                if (isDue || isDone || !isToday) {
+                    // MOSTRA NELLA LISTA PRINCIPALE
+                    // Se non è oggi, mostriamo tutto (storico)
+                    visibleCount++;
+                    dailyTotalPot += parseInt(h.reward);
+                    if(isDone) dailyEarned += parseInt(h.reward);
+
+                    const cssClass = isDone ? 'item done' : 'item';
+                    const freqLabel = freq > 1 ? `<span style="font-size:0.7em; background:#333; padding:2px 6px; border-radius:4px; margin-left:5px">Ogni ${freq}gg</span>` : '';
+
+                    hList.innerHTML += `
+                        <div class="${cssClass}">
+                            <div>
+                                <div style="display:flex; align-items:center">
+                                    <h3>${h.name}</h3>
+                                    ${freqLabel}
+                                </div>
+                                <div class="vals"><span class="plus">+${h.reward}</span> / <span class="minus">-${h.penalty}</span></div>
+                            </div>
+                            <div style="display:flex; gap:15px; align-items:center">
+                                <div class="checkbox-wrapper"><input type="checkbox" class="check" ${isDone ? 'checked' : ''} onclick="handleCheck(this, '${stableId}', ${h.reward})"></div>
+                                <button class="btn-sec" style="padding:0 5px; margin:0" onclick="deleteItem('habits', '${stableId}')">×</button>
+                            </div>
+                        </div>`;
+                } else {
+                    // MOSTRA IN "IN PROGRAMMA" (Solo se è Oggi e non è dovuta)
+                    upcomingCount++;
+                    upcomingList.innerHTML += `
+                        <div class="item" style="opacity:0.6; border-left:4px solid #555">
+                            <div>
+                                <h3>${h.name}</h3>
+                                <div class="vals" style="color:#888">Scade tra ${daysLeft} giorni</div>
+                            </div>
+                            <div class="future-tag">Ogni ${freq}gg</div>
+                        </div>`;
+                }
+            });
+            
+            if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività per oggi! 🎉</div>';
+            if(upcomingCount === 0) upcomingList.innerHTML = '<div style="text-align:center; padding:10px; color:#555">Nessuna scadenza futura</div>';
+
+            updateProgressCircle(dailyEarned, dailyTotalPot);
+
+            const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
+            if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
+            else {
+                todaysPurchases.forEach((p, idx) => {
+                    pList.innerHTML += `
+                        <div class="item">
+                            <div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div>
+                            <button class="btn-sec" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})">Rimborso</button>
+                        </div>`;
+                });
             }
+
+            const sList = document.getElementById('shopList'); sList.innerHTML = '';
+            (globalData.rewards || []).forEach((r) => {
+                sList.innerHTML += `
+                    <div class="item">
+                        <div><h3>${r.name}</h3><div class="vals minus">Costo: ${r.cost}</div></div>
+                        <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${r.cost})">Compra</button>
+                    </div>`;
+            });
         }
+
+        window.toggleAccordion = () => {
+            document.getElementById('upcomingList').classList.toggle('show');
+        }
+
+        function updateProgressCircle(earned, total) {
+            const circle = document.getElementById('prog-circle');
+            const text = document.getElementById('prog-text');
+            const radius = circle.r.baseVal.value;
+            const circumference = radius * 2 * Math.PI; 
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            let percent = total === 0 ? 0 : (earned / total) * 100;
+            if(percent > 100) percent = 100;
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+            text.innerText = Math.round(percent) + "%";
+        }
+
+        window.handleCheck = (el, habitId, reward) => { el.disabled = true; toggleHabit(habitId, reward); }
+
+        window.toggleHabit = async (habitId, reward) => {
+            const dateStr = getDateString(viewDate);
+            const ref = doc(db, "users", currentUser);
+            let dailyLogs = globalData.dailyLogs || {};
+            let entry = dailyLogs[dateStr];
+            let currentHabits = [], currentPurchases = [];
+            
+            if (Array.isArray(entry)) { currentHabits = entry; }
+            else if (entry) { currentHabits = entry.habits || []; currentPurchases = entry.purchases || []; }
+
+            let newScore = globalData.score;
+            let actionType = '';
+
+            // Trova l'abitudine completa per aggiornare lastDone
+            let habitsArr = globalData.habits;
+            let habitIndex = habitsArr.findIndex(h => {
+                const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+                return stableId === habitId;
+            });
+
+            if(currentHabits.includes(habitId)) {
+                // ANNULLA
+                currentHabits = currentHabits.filter(id => id !== habitId);
+                newScore -= parseInt(reward);
+                actionType = 'removed';
+                // Nota: Non rimuoviamo lastDone quando si annulla per semplicità, 
+                // oppure potremmo ripristinare il precedente se avessimo uno storico complesso.
+                // Per ora, annullare non resetta la data "lastDone" a null, ma va bene per l'uso comune.
+            } else {
+                // FAI
+                currentHabits.push(habitId);
+                newScore += parseInt(reward);
+                actionType = 'added';
+                
+                // Aggiorna Last Done
+                if (habitIndex >= 0) {
+                    habitsArr[habitIndex].lastDone = dateStr; // Salva la data di oggi come ultimo completamento
+                }
+
+                if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
+            }
+
+            dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
+            
+            // Aggiorna Score, Log giornaliero e anche l'array Habits (per il campo lastDone)
+            await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs, habits: habitsArr });
+            
+            logHistory(currentUser, newScore);
+            vibrate('light');
+            if(actionType==='added') showToast("Ottimo lavoro!", "✅");
+        };
+
+        window.buyReward = async (name, cost) => {
+            if(globalData.score < cost) { vibrate('heavy'); showToast("Punti insufficienti!", "❌"); return; }
+            if(!confirm(`Comprare ${name} per ${cost}?`)) return;
+
+            const dateStr = getDateString(viewDate);
+            const ref = doc(db, "users", currentUser);
+            let dailyLogs = globalData.dailyLogs || {};
+            let entry = dailyLogs[dateStr];
+            let currentHabits = [], currentPurchases = [];
+            if (Array.isArray(entry)) { currentHabits = entry; }
+            else if (entry) { currentHabits = entry.habits || []; currentPurchases = entry.purchases || []; }
+
+            currentPurchases.push({ name: name, cost: cost, time: Date.now() });
+            let newScore = globalData.score - parseInt(cost);
+            dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
+
+            await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+            logHistory(currentUser, newScore);
+            vibrate('heavy');
+            confetti({ shapes: ['circle'], colors: ['#4caf50'] });
+            showToast("Acquisto effettuato!", "🛍️");
+        };
+
+        window.refundPurchase = async (idx, cost) => {
+            if(!confirm("Annullare acquisto e rimborsare punti?")) return;
+            const dateStr = getDateString(viewDate);
+            const ref = doc(db, "users", currentUser);
+            let dailyLogs = globalData.dailyLogs; 
+            let entry = dailyLogs[dateStr];
+            entry.purchases.splice(idx, 1);
+            let newScore = globalData.score + parseInt(cost);
+            await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+            logHistory(currentUser, newScore);
+            vibrate('light');
+            showToast("Rimborsato!", "↩️");
+        };
+
+        window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
+        window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
         
-        // Carica preferenze all'avvio
-        if (localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
-        if (localStorage.getItem('font')) {
-            document.body.style.fontFamily = localStorage.getItem('font');
-            document.getElementById('font-selector').value = localStorage.getItem('font');
+        window.addItem = async () => {
+            const type = document.getElementById('newType').value;
+            let name = document.getElementById('newName').value;
+            const freq = document.getElementById('newFrequency').value || 1; // Prendi frequenza
+            
+            if(!name) { vibrate('heavy'); return; }
+            const id = Date.now().toString(); 
+            const ref = doc(db, "users", currentUser);
+            try {
+                if(type === 'habit') {
+                    const r = document.getElementById('newReward').value || 0;
+                    const p = document.getElementById('newPenalty').value || 0;
+                    // Salva frequenza nel DB
+                    await updateDoc(ref, { habits: arrayUnion({id, name, reward:r, penalty:p, frequency: parseInt(freq)}) });
+                } else {
+                    const c = document.getElementById('newCost').value || 0;
+                    await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c}) });
+                }
+                document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
+            } catch(e) { console.error(e); }
+        };
+
+        window.deleteItem = async (list, id) => {
+            if(confirm("Eliminare definitivamente?")) {
+                const ref = doc(db, "users", currentUser);
+                let arr = globalData[list].filter(item => { const itemId = item.id || item.name.replace(/[^a-zA-Z0-9]/g, ''); return itemId != id; });
+                await updateDoc(ref, { [list]: arr }); vibrate('light');
+            }
+        };
+
+        window.hardReset = async () => { const code = prompt("Scrivi RESET per cancellare tutto:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+
+        function applyTheme(user) {
+            const root = document.documentElement;
+            if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } 
+            else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; }
+            document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active');
+        }
+
+        window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
+        window.toggleInputs = () => { const t = document.getElementById('newType').value; document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none'; }
+
+        async function logHistory(user, score) {
+            const ref = doc(db, "users", user);
+            const hist = globalData.history || [];
+            hist.push({date: new Date().toISOString(), score});
+            if(hist.length > 500) hist.shift();
+            await updateDoc(ref, { history: hist });
+        }
+
+        function updateMultiChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            const labels = []; const dates = [];
+            for(let i=14; i>=0; i--) {
+                const d = new Date(); d.setDate(d.getDate() - i);
+                dates.push(d.toISOString().split('T')[0]);
+                labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+            }
+
+            const getDailyNetPoints = (userData) => {
+                if(!userData || !userData.dailyLogs) return new Array(15).fill(0);
+                return dates.map(date => {
+                    const entry = userData.dailyLogs[date];
+                    if(!entry) return 0;
+                    let habitsDone = [], purchases = [];
+                    if (Array.isArray(entry)) { habitsDone = entry; }
+                    else { habitsDone = entry.habits || []; purchases = entry.purchases || []; }
+                    let earned = 0;
+                    habitsDone.forEach(hId => {
+                        const hObj = userData.habits.find(h => {
+                            const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+                            return stableId === hId;
+                        });
+                        if(hObj) earned += parseInt(hObj.reward);
+                    });
+                    let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
+                    return earned - spent;
+                });
+            };
+
+            const flavioPoints = getDailyNetPoints(allUsersData.flavio);
+            const simonaPoints = getDailyNetPoints(allUsersData.simona);
+
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line', 
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 },
+                        { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { color: '#888' } } },
+                    scales: { 
+                        y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, 
+                        x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } 
+                    }
+                }
+            });
         }
     </script>
 </body>
