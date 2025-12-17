@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V9.5 Backup</title>
+    <title>GLP V9.6 (Time Travel)</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -60,42 +60,26 @@
         .date-btn { background: transparent; border: none; color: var(--text); font-size: 1.5em; padding: 0 15px; cursor: pointer; }
         .current-date { font-weight: bold; font-size: 1.1em; color: var(--theme-color); text-transform: uppercase; letter-spacing: 1px;}
 
-        /* ITEMS LIST & NEW ICONS */
+        /* ITEMS LIST */
         h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px;}
         .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #333; transition: 0.2s; position: relative; }
         .item.done { border-left-color: var(--theme-color); background: #1a1a1a; opacity: 0.7; } 
         .item.done h3 { text-decoration: line-through; color: #666; }
         .vals { font-size: 0.8em; color: #888; margin-top: 4px; } .plus { color: var(--success); } .minus { color: var(--danger); }
         
-        /* NUOVO STILE CHECKBOX & DELETE */
-        .actions-group { display: flex; gap: 15px; align-items: center; }
+        /* CHECKBOX, EDIT & DELETE */
+        .actions-group { display: flex; gap: 10px; align-items: center; }
         
-        /* Checkbox Nascosto */
         .checkbox-wrapper { position: relative; display: block; width: 28px; height: 28px; }
         .checkbox-wrapper input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
-        
-        /* Stile del Quadrato */
-        .checkmark {
-            position: absolute; top: 0; left: 0; height: 28px; width: 28px;
-            background-color: #2a2a2a; border: 2px solid #444; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer;
-        }
-        
-        /* Quando selezionato */
-        .checkbox-wrapper input:checked ~ .checkmark {
-            background-color: var(--theme-color); border-color: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-glow);
-        }
-        
-        /* Icona spunta */
+        .checkmark { position: absolute; top: 0; left: 0; height: 28px; width: 28px; background-color: #2a2a2a; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
+        .checkbox-wrapper input:checked ~ .checkmark { background-color: var(--theme-color); border-color: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-glow); }
         .checkmark::after { content: 'check'; font-family: 'Material Icons Round'; font-size: 20px; display: none; font-weight: bold; }
         .checkbox-wrapper input:checked ~ .checkmark::after { display: block; }
         
-        /* Tasto Elimina Minimal */
-        .btn-delete-minimal {
-            background: transparent; border: none; color: #666; cursor: pointer;
-            padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s;
-        }
-        .btn-delete-minimal:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
+        .btn-icon-minimal { background: transparent; border: none; color: #666; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s; }
+        .btn-icon-minimal:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-delete:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
 
         /* ACCORDION */
         .accordion { background: #252525; color: #888; cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 0.9em; border-radius: 12px; display: flex; justify-content: space-between; margin-top: 10px; box-sizing: border-box;}
@@ -105,15 +89,21 @@
 
         /* MODALS */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
-        .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; }
+        .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; max-height: 85vh; overflow-y: auto; }
         input, select.full { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box;}
         
         .btn-main { width: 100%; background: var(--theme-color); color: #000; padding: 12px; border-radius: 10px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer;}
         .btn-sec { width: 100%; background: transparent; color: #888; padding: 10px; border: none; margin-top: 5px; cursor: pointer;}
         .btn-danger { width: 100%; background: #2a1a1a; color: var(--danger); border: 1px solid var(--danger); padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold; cursor: pointer;}
-        
-        /* Tasti Backup */
         .btn-backup { width: 100%; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;}
+
+        /* EDIT MODAL SPECIFIC (V9.6) */
+        .grid-2 { display: flex; gap: 10px; }
+        .grid-2 .input-group { flex: 1; }
+        .history-list { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; font-size: 0.85rem; color: var(--text-sec); max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); }
+        .history-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .history-item:last-child { border-bottom: none; margin-bottom: 0; }
+        .history-date { color: var(--theme-color); font-weight: bold; font-size: 0.8rem; }
 
         #toast { visibility: hidden; min-width: 250px; background-color: var(--toast-bg); color: #fff; text-align: center; border-radius: 50px; padding: 12px 20px; position: fixed; z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: 500; font-size: 0.9em; border: 1px solid #444; display: flex; align-items: center; justify-content: center; gap: 10px; }
         #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; bottom: 100px; }
@@ -125,7 +115,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V9.5 Backup</div>
+    <div class="version-tag">GLP V9.6 (History)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -188,6 +178,34 @@
         </div>
     </div>
 
+    <div id="editModal" class="modal">
+        <div class="modal-box">
+            <h3><span class="material-icons-round">edit</span> Modifica</h3>
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Nome</label>
+                <input type="text" id="editName">
+            </div>
+
+            <div class="grid-2">
+                <div class="input-group" id="editValGroup1">
+                    <label id="editLabel1" style="font-size:0.8em; color:#888;">Reward</label>
+                    <input type="number" id="editVal1">
+                </div>
+                <div class="input-group" id="editValGroup2">
+                    <label id="editLabel2" style="font-size:0.8em; color:#888;">Penalty</label>
+                    <input type="number" id="editVal2">
+                </div>
+            </div>
+
+            <div class="history-list" id="editHistoryLog">
+                <div style="text-align:center; padding:10px;">Caricamento storico...</div>
+            </div>
+
+            <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
+            <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
+        </div>
+    </div>
+
     <div id="settingsModal" class="modal">
         <div class="modal-box" style="text-align:center">
             <h3>Impostazioni</h3>
@@ -230,6 +248,22 @@
         let allUsersData = { flavio: null, simona: null };
         let viewDate = new Date(); 
         let chartInstance = null;
+
+        // --- TIME TRAVEL LOGIC (V9.6) ---
+        // Questa funzione recupera il valore di un oggetto in una specifica data
+        window.getItemValueAtDate = (item, field, dateStr) => {
+            if (!item.changes || item.changes.length === 0) {
+                return parseInt(item[field] || 0);
+            }
+            const sortedChanges = item.changes.slice().sort((a, b) => a.date.localeCompare(b.date));
+            let validChange = null;
+            for (let change of sortedChanges) {
+                if (change.date <= dateStr) { validChange = change; } 
+                else { break; }
+            }
+            if (validChange) return parseInt(validChange[field] || 0);
+            return sortedChanges.length > 0 ? parseInt(sortedChanges[0][field] || 0) : 0;
+        };
 
         // SWIPE
         let touchStartX = 0; let touchEndX = 0;
@@ -310,6 +344,10 @@
                 const isDone = todaysHabits.includes(stableId);
                 const freq = h.frequency || 1; 
                 
+                // V9.6: Use Time Travel values
+                const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
+                const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
+
                 let shouldShow = true;
                 let daysLeft = 0;
 
@@ -327,25 +365,27 @@
 
                 if (shouldShow) {
                     visibleCount++;
-                    dailyTotalPot += parseInt(h.reward);
-                    if(isDone) dailyEarned += parseInt(h.reward);
+                    dailyTotalPot += currentReward;
+                    if(isDone) dailyEarned += currentReward;
 
                     const cssClass = isDone ? 'item done' : 'item';
                     const freqLabel = freq > 1 ? `<span style="font-size:0.7em; background:#333; padding:2px 6px; border-radius:4px; margin-left:5px">Ogni ${freq}gg</span>` : '';
 
-                    // NUOVA GRAFICA CHECKBOX E DELETE
                     hList.innerHTML += `
                         <div class="${cssClass}">
                             <div>
                                 <div style="display:flex; align-items:center"><h3>${h.name}</h3>${freqLabel}</div>
-                                <div class="vals"><span class="plus">+${h.reward}</span> / <span class="minus">-${h.penalty}</span></div>
+                                <div class="vals"><span class="plus">+${currentReward}</span> / <span class="minus">-${currentPenalty}</span></div>
                             </div>
                             <div class="actions-group">
+                                <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')">
+                                    <span class="material-icons-round" style="font-size:18px">edit</span>
+                                </button>
                                 <label class="checkbox-wrapper">
-                                    <input type="checkbox" ${isDone ? 'checked disabled' : ''} onclick="toggleHabit('${stableId}', ${h.reward})">
+                                    <input type="checkbox" ${isDone ? 'checked disabled' : ''} onclick="toggleHabit('${stableId}', ${currentReward})">
                                     <span class="checkmark"></span>
                                 </label>
-                                <button class="btn-delete-minimal" onclick="deleteItem('habits', '${stableId}')">
+                                <button class="btn-icon-minimal btn-delete" onclick="deleteItem('habits', '${stableId}')">
                                     <span class="material-icons-round" style="font-size:18px">close</span>
                                 </button>
                             </div>
@@ -369,13 +409,22 @@
             if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
             else {
                 todaysPurchases.forEach((p, idx) => {
-                    pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-delete-minimal" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
+                    pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
                 });
             }
 
             const sList = document.getElementById('shopList'); sList.innerHTML = '';
             (globalData.rewards || []).forEach((r) => {
-                sList.innerHTML += `<div class="item"><div><h3>${r.name}</h3><div class="vals minus">Costo: ${r.cost}</div></div><button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${r.cost})">Compra</button></div>`;
+                const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+                sList.innerHTML += `
+                    <div class="item">
+                        <div><h3>${r.name}</h3><div class="vals minus">Costo: ${currentCost}</div></div>
+                        <div class="actions-group">
+                             <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                             <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                             <button class="btn-icon-minimal btn-delete" onclick="deleteItem('rewards', '${r.id}')"><span class="material-icons-round" style="font-size:18px">close</span></button>
+                        </div>
+                    </div>`;
             });
         }
 
@@ -395,6 +444,7 @@
         }
 
         window.toggleHabit = async (habitId, reward) => {
+            // Note: reward passed here is already 'Time Travel' corrected by renderView
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
@@ -433,6 +483,7 @@
             let entry = dailyLogs[dateStr];
             let currentHabits = (Array.isArray(entry) ? entry : entry?.habits) || [];
             let currentPurchases = (Array.isArray(entry) ? [] : entry?.purchases) || [];
+            // Here cost is snapshot at purchase time, which is correct
             currentPurchases.push({ name: name, cost: cost, time: Date.now() });
             let newScore = globalData.score - parseInt(cost);
             dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
@@ -456,6 +507,116 @@
             vibrate('light');
             showToast("Rimborsato!", "↩️");
         };
+
+        // --- EDIT MODAL LOGIC (V9.6) ---
+        let editingItem = null; 
+        let editingType = null; 
+
+        window.openEditModal = (id, type) => {
+            editingType = type;
+            const list = type === 'habit' ? globalData.habits : globalData.rewards;
+            editingItem = list.find(i => i.id === id);
+            if(!editingItem) return;
+
+            document.getElementById('editName').value = editingItem.name;
+            
+            if (type === 'habit') {
+                document.getElementById('editLabel1').innerText = "Reward (+)";
+                document.getElementById('editLabel2').innerText = "Penalty (-)";
+                document.getElementById('editValGroup2').style.display = 'block';
+                document.getElementById('editVal1').value = editingItem.reward;
+                document.getElementById('editVal2').value = editingItem.penalty;
+            } else {
+                document.getElementById('editLabel1').innerText = "Costo";
+                document.getElementById('editValGroup2').style.display = 'none'; 
+                document.getElementById('editVal1').value = editingItem.cost;
+            }
+
+            renderEditHistory(editingItem, type);
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function renderEditHistory(item, type) {
+            const container = document.getElementById('editHistoryLog');
+            container.innerHTML = '';
+
+            let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
+            
+            if (changes.length === 0) {
+                container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>';
+                return;
+            }
+
+            let html = '';
+            changes.forEach((change, index) => {
+                let text = '';
+                let dateFmt = change.date.split('-').reverse().join('/'); 
+
+                if (index === 0) {
+                    let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
+                    text = `Valore iniziale: <b>${val}</b>`;
+                } else {
+                    let prev = changes[index - 1];
+                    if (type === 'habit') {
+                        text = `Modificato: +${prev.reward} -> <b>+${change.reward}</b>`;
+                    } else {
+                        text = `Costo: ${prev.cost} -> <b>${change.cost}</b>`;
+                    }
+                }
+                html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div></div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        window.saveEdit = async () => {
+            if(!editingItem) return;
+            const newName = document.getElementById('editName').value;
+            const val1 = parseInt(document.getElementById('editVal1').value) || 0;
+            const val2 = parseInt(document.getElementById('editVal2').value) || 0;
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            editingItem.name = newName;
+
+            let newChangeEntry = { date: todayStr };
+            if (editingType === 'habit') {
+                newChangeEntry.reward = val1;
+                newChangeEntry.penalty = val2;
+            } else {
+                newChangeEntry.cost = val1;
+            }
+
+            if (!editingItem.changes) {
+                let initialEntry = { date: '2020-01-01' }; 
+                if (editingType === 'habit') {
+                    initialEntry.reward = editingItem.reward;
+                    initialEntry.penalty = editingItem.penalty;
+                } else {
+                    initialEntry.cost = editingItem.cost;
+                }
+                editingItem.changes = [initialEntry];
+            }
+
+            // Remove any existing entry for today to overwrite it
+            editingItem.changes = editingItem.changes.filter(c => c.date !== todayStr);
+            editingItem.changes.push(newChangeEntry);
+
+            // Update current values for quick access
+            if (editingType === 'habit') {
+                editingItem.reward = val1;
+                editingItem.penalty = val2;
+            } else {
+                editingItem.cost = val1;
+            }
+
+            const ref = doc(db, "users", currentUser);
+            if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits });
+            else await updateDoc(ref, { rewards: globalData.rewards });
+            
+            document.getElementById('editModal').style.display = 'none';
+            editingItem = null;
+            renderView(); 
+            showToast("Modifiche salvate!", "✏️");
+        }
 
         // --- BACKUP FUNCTIONS (JSON) ---
         window.exportData = async () => {
@@ -589,7 +750,11 @@
                             const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
                             return stableId === hId;
                         });
-                        if(hObj) earned += parseInt(hObj.reward);
+                        if(hObj) {
+                            // V9.6: Use Time Travel values for Historical Chart
+                            const histReward = window.getItemValueAtDate(hObj, 'reward', date);
+                            earned += histReward;
+                        }
                     });
                     let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
                     return earned - spent;
