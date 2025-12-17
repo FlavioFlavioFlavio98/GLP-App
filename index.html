@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V9.6 (Time Travel)</title>
+    <title>GLP V9.7 (Notes)</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -90,20 +90,22 @@
         /* MODALS */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
         .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; max-height: 85vh; overflow-y: auto; }
-        input, select.full { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box;}
-        
+        input, select.full, textarea { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box; font-family: inherit;}
+        textarea { resize: vertical; min-height: 60px; }
+
         .btn-main { width: 100%; background: var(--theme-color); color: #000; padding: 12px; border-radius: 10px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer;}
         .btn-sec { width: 100%; background: transparent; color: #888; padding: 10px; border: none; margin-top: 5px; cursor: pointer;}
         .btn-danger { width: 100%; background: #2a1a1a; color: var(--danger); border: 1px solid var(--danger); padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold; cursor: pointer;}
         .btn-backup { width: 100%; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;}
 
-        /* EDIT MODAL SPECIFIC (V9.6) */
+        /* EDIT MODAL SPECIFIC (V9.6/V9.7) */
         .grid-2 { display: flex; gap: 10px; }
         .grid-2 .input-group { flex: 1; }
         .history-list { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; font-size: 0.85rem; color: var(--text-sec); max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); }
         .history-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .history-item:last-child { border-bottom: none; margin-bottom: 0; }
         .history-date { color: var(--theme-color); font-weight: bold; font-size: 0.8rem; }
+        .history-note { font-style: italic; color: #888; margin-top: 2px; font-size: 0.8em; border-left: 2px solid #555; padding-left: 5px; }
 
         #toast { visibility: hidden; min-width: 250px; background-color: var(--toast-bg); color: #fff; text-align: center; border-radius: 50px; padding: 12px 20px; position: fixed; z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: 500; font-size: 0.9em; border: 1px solid #444; display: flex; align-items: center; justify-content: center; gap: 10px; }
         #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; bottom: 100px; }
@@ -115,7 +117,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V9.6 (History)</div>
+    <div class="version-tag">GLP V9.7 (Notes & Dates)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -181,6 +183,12 @@
     <div id="editModal" class="modal">
         <div class="modal-box">
             <h3><span class="material-icons-round">edit</span> Modifica</h3>
+            
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Data della modifica (per storico)</label>
+                <input type="date" id="editDate" class="full">
+            </div>
+
             <div class="input-group">
                 <label style="font-size:0.8em; color:#888;">Nome</label>
                 <input type="text" id="editName">
@@ -195,6 +203,11 @@
                     <label id="editLabel2" style="font-size:0.8em; color:#888;">Penalty</label>
                     <input type="number" id="editVal2">
                 </div>
+            </div>
+
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Nota (Opzionale)</label>
+                <textarea id="editNote" placeholder="Es. Aumentato perché più faticoso..." class="full" rows="2"></textarea>
             </div>
 
             <div class="history-list" id="editHistoryLog">
@@ -249,8 +262,7 @@
         let viewDate = new Date(); 
         let chartInstance = null;
 
-        // --- TIME TRAVEL LOGIC (V9.6) ---
-        // Questa funzione recupera il valore di un oggetto in una specifica data
+        // --- TIME TRAVEL LOGIC (V9.7) ---
         window.getItemValueAtDate = (item, field, dateStr) => {
             if (!item.changes || item.changes.length === 0) {
                 return parseInt(item[field] || 0);
@@ -344,7 +356,7 @@
                 const isDone = todaysHabits.includes(stableId);
                 const freq = h.frequency || 1; 
                 
-                // V9.6: Use Time Travel values
+                // V9.7: Use Time Travel values
                 const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
                 const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
 
@@ -444,7 +456,6 @@
         }
 
         window.toggleHabit = async (habitId, reward) => {
-            // Note: reward passed here is already 'Time Travel' corrected by renderView
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
@@ -483,7 +494,6 @@
             let entry = dailyLogs[dateStr];
             let currentHabits = (Array.isArray(entry) ? entry : entry?.habits) || [];
             let currentPurchases = (Array.isArray(entry) ? [] : entry?.purchases) || [];
-            // Here cost is snapshot at purchase time, which is correct
             currentPurchases.push({ name: name, cost: cost, time: Date.now() });
             let newScore = globalData.score - parseInt(cost);
             dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
@@ -508,7 +518,7 @@
             showToast("Rimborsato!", "↩️");
         };
 
-        // --- EDIT MODAL LOGIC (V9.6) ---
+        // --- EDIT MODAL LOGIC (V9.7) ---
         let editingItem = null; 
         let editingType = null; 
 
@@ -519,7 +529,10 @@
             if(!editingItem) return;
 
             document.getElementById('editName').value = editingItem.name;
-            
+            // Reset fields
+            document.getElementById('editNote').value = '';
+            document.getElementById('editDate').value = new Date().toISOString().split('T')[0];
+
             if (type === 'habit') {
                 document.getElementById('editLabel1').innerText = "Reward (+)";
                 document.getElementById('editLabel2').innerText = "Penalty (-)";
@@ -551,19 +564,25 @@
             changes.forEach((change, index) => {
                 let text = '';
                 let dateFmt = change.date.split('-').reverse().join('/'); 
+                let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : '';
 
                 if (index === 0) {
                     let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
                     text = `Valore iniziale: <b>${val}</b>`;
                 } else {
                     let prev = changes[index - 1];
+                    let diffText = '';
                     if (type === 'habit') {
-                        text = `Modificato: +${prev.reward} -> <b>+${change.reward}</b>`;
+                        if (prev.reward !== change.reward) diffText += `Rw: ${prev.reward}→<b>${change.reward}</b> `;
+                        if (prev.penalty !== change.penalty) diffText += `Pn: ${prev.penalty}→<b>${change.penalty}</b> `;
+                        if (!diffText) diffText = "Solo Nota/Nome";
                     } else {
-                        text = `Costo: ${prev.cost} -> <b>${change.cost}</b>`;
+                        if (prev.cost !== change.cost) diffText = `Costo: ${prev.cost}→<b>${change.cost}</b>`;
+                        else diffText = "Solo Nota/Nome";
                     }
+                    text = diffText;
                 }
-                html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div></div>`;
+                html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
             });
             container.innerHTML = html;
         }
@@ -573,11 +592,16 @@
             const newName = document.getElementById('editName').value;
             const val1 = parseInt(document.getElementById('editVal1').value) || 0;
             const val2 = parseInt(document.getElementById('editVal2').value) || 0;
-            const todayStr = new Date().toISOString().split('T')[0];
+            const editDate = document.getElementById('editDate').value; 
+            const editNote = document.getElementById('editNote').value;
+
+            if(!editDate) { alert("Data obbligatoria"); return; }
 
             editingItem.name = newName;
 
-            let newChangeEntry = { date: todayStr };
+            let newChangeEntry = { date: editDate };
+            if (editNote.trim() !== "") newChangeEntry.note = editNote;
+
             if (editingType === 'habit') {
                 newChangeEntry.reward = val1;
                 newChangeEntry.penalty = val2;
@@ -585,8 +609,9 @@
                 newChangeEntry.cost = val1;
             }
 
+            // Init history if missing
             if (!editingItem.changes) {
-                let initialEntry = { date: '2020-01-01' }; 
+                let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
                 if (editingType === 'habit') {
                     initialEntry.reward = editingItem.reward;
                     initialEntry.penalty = editingItem.penalty;
@@ -596,16 +621,20 @@
                 editingItem.changes = [initialEntry];
             }
 
-            // Remove any existing entry for today to overwrite it
-            editingItem.changes = editingItem.changes.filter(c => c.date !== todayStr);
+            // Remove existing entry for THAT date to overwrite
+            editingItem.changes = editingItem.changes.filter(c => c.date !== editDate);
             editingItem.changes.push(newChangeEntry);
 
-            // Update current values for quick access
+            // Re-sort changes chronologically
+            editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
+
+            // Update root values to match the LATEST entry (chronologically)
+            const latest = editingItem.changes[editingItem.changes.length - 1];
             if (editingType === 'habit') {
-                editingItem.reward = val1;
-                editingItem.penalty = val2;
+                editingItem.reward = latest.reward;
+                editingItem.penalty = latest.penalty;
             } else {
-                editingItem.cost = val1;
+                editingItem.cost = latest.cost;
             }
 
             const ref = doc(db, "users", currentUser);
@@ -615,7 +644,7 @@
             document.getElementById('editModal').style.display = 'none';
             editingItem = null;
             renderView(); 
-            showToast("Modifiche salvate!", "✏️");
+            showToast("Storico aggiornato!", "✏️");
         }
 
         // --- BACKUP FUNCTIONS (JSON) ---
@@ -751,7 +780,7 @@
                             return stableId === hId;
                         });
                         if(hObj) {
-                            // V9.6: Use Time Travel values for Historical Chart
+                            // V9.7: Use Time Travel values for Historical Chart
                             const histReward = window.getItemValueAtDate(hObj, 'reward', date);
                             earned += histReward;
                         }
