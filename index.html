@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V9.9 (History Fix)</title>
+    <title>GLP V9.95 (Clean UI)</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -56,15 +56,27 @@
         .score-row span { font-size: 0.9em; color: #888; } .score-row strong { font-size: 1.2em; color: var(--text); }
 
         .chart-box { background: var(--card); padding: 10px; border-radius: 16px; height: 220px; margin-bottom: 20px; }
-        .date-nav { display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 10px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #333; }
-        .date-btn { background: transparent; border: none; color: var(--text); font-size: 1.5em; padding: 0 15px; cursor: pointer; }
-        .current-date { font-weight: bold; font-size: 1.1em; color: var(--theme-color); text-transform: uppercase; letter-spacing: 1px;}
+        
+        /* DATE NAV & SUMMARY (V9.95) */
+        .date-nav { position: relative; display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 10px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
+        .date-btn { background: transparent; border: none; color: var(--text); font-size: 1.5em; padding: 0 15px; cursor: pointer; z-index: 2; }
+        .current-date-wrapper { position: relative; flex: 1; text-align: center; }
+        .current-date { font-weight: bold; font-size: 1.1em; color: var(--theme-color); text-transform: uppercase; letter-spacing: 1px; }
+        /* Invisible date input covering the text */
+        #datePicker { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+
+        .daily-summary { display: flex; justify-content: space-around; background: var(--card); padding: 10px; border-radius: 12px; margin-bottom: 25px; font-size: 0.9em; border: 1px solid #333; }
+        .sum-item { text-align: center; }
+        .sum-label { font-size: 0.7em; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+        .sum-val { font-weight: bold; font-size: 1.1em; }
+        .sum-val.earn { color: var(--success); }
+        .sum-val.spent { color: var(--danger); }
+        .sum-val.net { color: var(--theme-color); }
 
         /* ITEMS LIST */
         h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px;}
         .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #333; transition: 0.2s; position: relative; }
         
-        /* New Status Styles V9.8 */
         .item.status-done { background: rgba(76, 175, 80, 0.1); } 
         .item.status-failed { background: rgba(239, 83, 80, 0.1); }
         
@@ -75,10 +87,8 @@
         /* ACTION BUTTONS */
         .actions-group { display: flex; gap: 8px; align-items: center; }
         .btn-status { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; background: transparent; color: #666; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
-        
         .btn-status.done:hover, .btn-status.done.active { background: var(--success); border-color: var(--success); color: #000; box-shadow: 0 0 10px rgba(76, 175, 80, 0.4); }
         .btn-status.failed:hover, .btn-status.failed.active { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: 0 0 10px rgba(239, 83, 80, 0.4); }
-
         .btn-icon-minimal { background: transparent; border: none; color: #666; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s; }
         .btn-icon-minimal:hover { background: rgba(255,255,255,0.1); color: #fff; }
         .btn-delete:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
@@ -125,7 +135,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V9.9 (History Fix & Stats)</div>
+    <div class="version-tag">GLP V9.95 (Summary & Clean UI)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -146,20 +156,45 @@
     </div>
 
     <div class="chart-box"><canvas id="progressChart"></canvas></div>
-    <div class="date-nav"><button class="date-btn" onclick="changeDate(-1)">&#8249;</button><span class="current-date" id="dateDisplay">OGGI</span><button class="date-btn" onclick="changeDate(1)">&#8250;</button></div>
+    
+    <div class="date-nav">
+        <button class="date-btn" onclick="changeDate(-1)">&#8249;</button>
+        <div class="current-date-wrapper">
+            <span class="current-date" id="dateDisplay">OGGI</span>
+            <input type="date" id="datePicker" onchange="goToDate(this.value)">
+        </div>
+        <button class="date-btn" onclick="changeDate(1)">&#8250;</button>
+    </div>
+
+    <div class="daily-summary">
+        <div class="sum-item">
+            <div class="sum-label">Guadagnati</div>
+            <div class="sum-val earn" id="sum-earn">0</div>
+        </div>
+        <div class="sum-item">
+            <div class="sum-label">Spesi/Pen</div>
+            <div class="sum-val spent" id="sum-spent">0</div>
+        </div>
+        <div class="sum-item">
+            <div class="sum-label">Netto</div>
+            <div class="sum-val net" id="sum-net">0</div>
+        </div>
+    </div>
 
     <div id="mainContent">
         <h2>ABITUDINI DEL GIORNO</h2>
         <div id="habitList"></div>
         
-        <button class="accordion" onclick="toggleAccordion()"><span>📅 In Programma</span><span class="material-icons-round">expand_more</span></button>
+        <button class="accordion" onclick="toggleAccordion('upcomingList')"><span>📅 In Programma</span><span class="material-icons-round">expand_more</span></button>
         <div class="panel" id="upcomingList"><div style="text-align:center; color:#555; padding:10px;">Niente in programma</div></div>
 
         <h2>ACQUISTI DEL GIORNO</h2>
         <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
 
-        <h2>NEGOZIO PREMI</h2>
-        <div id="shopList"></div>
+        <button class="accordion" onclick="toggleAccordion('shopPanel')" style="margin-top:20px"><span>🛍️ Negozio Premi</span><span class="material-icons-round">expand_more</span></button>
+        <div class="panel" id="shopPanel">
+            <div id="shopList"></div>
+        </div>
     </div>
 
     <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
@@ -248,6 +283,7 @@
             <div class="history-list" id="editHistoryLog"></div>
 
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
+            <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia / Elimina</button>
             <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
         </div>
     </div>
@@ -255,7 +291,7 @@
     <div id="archiveModal" class="modal">
         <div class="modal-box">
             <h3><span class="material-icons-round">archive</span> Archivia</h3>
-            <p style="color:#aaa; font-size:0.9em">Da quale data vuoi smettere di vedere questa abitudine?</p>
+            <p style="color:#aaa; font-size:0.9em">Da quale data vuoi smettere di vedere questo elemento?</p>
             <input type="date" id="archiveDate" class="full">
             <button class="btn-danger" onclick="confirmArchive()">Archivia definitivamente</button>
             <button class="btn-sec" onclick="document.getElementById('archiveModal').style.display='none'">Annulla</button>
@@ -325,15 +361,12 @@
             return sortedChanges.length > 0 ? parseInt(sortedChanges[0][field] || 0) : 0;
         };
 
-        // --- HELPER: Count Reward Purchases (V9.9) ---
         function countRewardPurchases(rewardName) {
             if (!globalData || !globalData.dailyLogs) return 0;
             let count = 0;
             Object.values(globalData.dailyLogs).forEach(log => {
                 let purchases = Array.isArray(log) ? [] : (log.purchases || []);
-                purchases.forEach(p => {
-                    if (p.name === rewardName) count++;
-                });
+                purchases.forEach(p => { if (p.name === rewardName) count++; });
             });
             return count;
         }
@@ -386,18 +419,27 @@
         }
 
         window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); renderView(); }
+        window.goToDate = (dateStr) => { 
+            if(!dateStr) return;
+            viewDate = new Date(dateStr); 
+            renderView(); 
+        }
         function getDateString(date) { return date.toISOString().split('T')[0]; }
 
         function renderView() {
             if(!globalData) return;
             const todayStr = getDateString(new Date());
             const viewStr = getDateString(viewDate);
-            const displayEl = document.getElementById('dateDisplay');
             
+            // UI Date Updates
+            const displayEl = document.getElementById('dateDisplay');
             let isToday = (viewStr === todayStr);
             if (isToday) displayEl.innerText = "OGGI";
             else if (viewStr === getDateString(new Date(Date.now() - 86400000))) displayEl.innerText = "IERI";
             else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
+            
+            // Update Picker invisible value
+            document.getElementById('datePicker').value = viewStr;
 
             const dailyLogs = globalData.dailyLogs || {};
             const entry = dailyLogs[viewStr] || {};
@@ -409,7 +451,7 @@
             const hList = document.getElementById('habitList'); hList.innerHTML = '';
             const upcomingList = document.getElementById('upcomingList'); upcomingList.innerHTML = '';
             
-            let dailyTotalPot = 0; let dailyEarned = 0;
+            let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
             let visibleCount = 0; let upcomingCount = 0;
 
             const tagsMap = {};
@@ -443,12 +485,11 @@
                     visibleCount++;
                     dailyTotalPot += currentReward;
                     if(isDone) dailyEarned += currentReward;
-                    if(isFailed) dailyEarned -= currentPenalty; 
+                    if(isFailed) dailySpent += currentPenalty; 
 
                     const tagObj = tagsMap[h.tagId];
                     const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
                     const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
-                    
                     let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
                     
                     hList.innerHTML += `
@@ -459,17 +500,8 @@
                             </div>
                             <div class="actions-group">
                                 <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                                
-                                <button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})">
-                                    <span class="material-icons-round">close</span>
-                                </button>
-                                <button class="btn-status done ${isDone?'active':''}" onclick="setHabitStatus('${stableId}', 'done', ${currentReward})">
-                                    <span class="material-icons-round">check</span>
-                                </button>
-
-                                <button class="btn-icon-minimal btn-delete" onclick="archiveItem('habits', '${stableId}')">
-                                    <span class="material-icons-round" style="font-size:18px">delete</span>
-                                </button>
+                                <button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>
+                                <button class="btn-status done ${isDone?'active':''}" onclick="setHabitStatus('${stableId}', 'done', ${currentReward})"><span class="material-icons-round">check</span></button>
                             </div>
                         </div>`;
                 } else {
@@ -480,26 +512,35 @@
             
             if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
             
-            updateProgressCircle(dailyEarned, dailyTotalPot);
-
+            // Calculate Totals including purchases
+            let purchaseCost = 0;
             const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
             if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
             else {
                 todaysPurchases.forEach((p, idx) => {
+                    purchaseCost += parseInt(p.cost);
                     pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
                 });
             }
+            
+            dailySpent += purchaseCost;
+            
+            // Update Summary UI
+            document.getElementById('sum-earn').innerText = `+${dailyEarned}`;
+            document.getElementById('sum-spent').innerText = `-${dailySpent}`;
+            const net = dailyEarned - dailySpent;
+            document.getElementById('sum-net').innerText = (net > 0 ? '+' : '') + net;
 
+            updateProgressCircle(dailyEarned, dailyTotalPot);
+
+            // Render Rewards (Accordion Content)
             const sList = document.getElementById('shopList'); sList.innerHTML = '';
             (globalData.rewards || []).forEach((r) => {
                 if (r.archivedAt && viewStr >= r.archivedAt) return;
-
                 const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
                 const tagObj = tagsMap[r.tagId];
                 const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
                 const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
-                
-                // V9.9: Purchase Count
                 const count = countRewardPurchases(r.name);
                 const countHtml = count > 0 ? `<span class="count-badge">x${count}</span>` : '';
 
@@ -509,7 +550,6 @@
                         <div class="actions-group">
                              <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                              <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
-                             <button class="btn-icon-minimal btn-delete" onclick="archiveItem('rewards', '${r.id}')"><span class="material-icons-round" style="font-size:18px">delete</span></button>
                         </div>
                     </div>`;
             });
@@ -528,7 +568,7 @@
             text.innerText = Math.round(percent) + "%";
         }
 
-        window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
+        window.toggleAccordion = (id) => { document.getElementById(id).classList.toggle('show'); }
 
         window.setHabitStatus = async (habitId, newStatus, value) => {
             const dateStr = getDateString(viewDate);
@@ -587,9 +627,7 @@
             if(actionType === 'done') {
                 if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
                 showToast("Completata!", "✅");
-            } else if (actionType === 'failed') {
-                showToast("Segnata come fallita", "❌");
-            }
+            } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
         };
 
         window.buyReward = async (name, cost) => {
@@ -664,7 +702,6 @@
             document.getElementById('editModal').style.display = 'flex';
         }
 
-        // --- V9.9 FIXED HISTORY RENDER ---
         function renderEditHistory(item, type) {
             const container = document.getElementById('editHistoryLog');
             container.innerHTML = '';
@@ -820,6 +857,13 @@
                 document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
             } catch(e) { console.error(e); }
         };
+
+        // --- NEW: ARCHIVE FROM EDIT (V9.95) ---
+        window.archiveFromEdit = () => {
+            if(!editingItem) return;
+            archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id);
+            document.getElementById('editModal').style.display = 'none';
+        }
 
         window.archiveItem = (list, id) => {
             pendingArchiveId = { list, id };
