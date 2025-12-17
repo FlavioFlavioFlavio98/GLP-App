@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V9.7 (Notes)</title>
+    <title>GLP V9.8 (Tags & Control)</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -17,7 +17,7 @@
     <style>
         :root {
             --bg: #121212; --card: #1e1e1e; --text: #ffffff; --text-sec: #b0b0b0;
-            --success: #4caf50; --danger: #ef5350;
+            --success: #4caf50; --danger: #ef5350; --neutral: #333;
             --theme-color: #ffca28; --theme-glow: rgba(255, 202, 40, 0.3);
             --toast-bg: #333;
         }
@@ -62,21 +62,22 @@
 
         /* ITEMS LIST */
         h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px;}
-        .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #333; transition: 0.2s; position: relative; }
-        .item.done { border-left-color: var(--theme-color); background: #1a1a1a; opacity: 0.7; } 
-        .item.done h3 { text-decoration: line-through; color: #666; }
+        .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #333; transition: 0.2s; position: relative; }
+        
+        /* New Status Styles V9.8 */
+        .item.status-done { background: rgba(76, 175, 80, 0.1); } 
+        .item.status-failed { background: rgba(239, 83, 80, 0.1); }
+        
         .vals { font-size: 0.8em; color: #888; margin-top: 4px; } .plus { color: var(--success); } .minus { color: var(--danger); }
+        .tag-pill { font-size: 0.65em; padding: 2px 6px; border-radius: 4px; color: #fff; background: #444; margin-left: 6px; text-transform: uppercase; font-weight: bold; vertical-align: middle; }
+
+        /* ACTION BUTTONS (V9.8) */
+        .actions-group { display: flex; gap: 8px; align-items: center; }
+        .btn-status { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; background: transparent; color: #666; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
         
-        /* CHECKBOX, EDIT & DELETE */
-        .actions-group { display: flex; gap: 10px; align-items: center; }
-        
-        .checkbox-wrapper { position: relative; display: block; width: 28px; height: 28px; }
-        .checkbox-wrapper input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
-        .checkmark { position: absolute; top: 0; left: 0; height: 28px; width: 28px; background-color: #2a2a2a; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
-        .checkbox-wrapper input:checked ~ .checkmark { background-color: var(--theme-color); border-color: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-glow); }
-        .checkmark::after { content: 'check'; font-family: 'Material Icons Round'; font-size: 20px; display: none; font-weight: bold; }
-        .checkbox-wrapper input:checked ~ .checkmark::after { display: block; }
-        
+        .btn-status.done:hover, .btn-status.done.active { background: var(--success); border-color: var(--success); color: #000; box-shadow: 0 0 10px rgba(76, 175, 80, 0.4); }
+        .btn-status.failed:hover, .btn-status.failed.active { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: 0 0 10px rgba(239, 83, 80, 0.4); }
+
         .btn-icon-minimal { background: transparent; border: none; color: #666; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s; }
         .btn-icon-minimal:hover { background: rgba(255,255,255,0.1); color: #fff; }
         .btn-delete:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
@@ -85,7 +86,6 @@
         .accordion { background: #252525; color: #888; cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 0.9em; border-radius: 12px; display: flex; justify-content: space-between; margin-top: 10px; box-sizing: border-box;}
         .panel { padding: 0 5px; display: none; overflow: hidden; margin-top: 10px; }
         .panel.show { display: block; }
-        .future-tag { background: #333; font-size: 0.7em; padding: 2px 8px; border-radius: 4px; color: #aaa; margin-left: 8px;}
 
         /* MODALS */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
@@ -107,6 +107,13 @@
         .history-date { color: var(--theme-color); font-weight: bold; font-size: 0.8rem; }
         .history-note { font-style: italic; color: #888; margin-top: 2px; font-size: 0.8em; border-left: 2px solid #555; padding-left: 5px; }
 
+        /* TAG MANAGER STYLES (V9.8) */
+        .tag-row { display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 8px 12px; margin-bottom: 5px; border-radius: 8px; }
+        .color-dot { width: 15px; height: 15px; border-radius: 50%; margin-right: 10px; display: inline-block; }
+        .switch-group { display: flex; background: #2a2a2a; border-radius: 8px; padding: 4px; margin: 10px 0; border: 1px solid #444; }
+        .switch-opt { flex: 1; text-align: center; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 0.9em; color: #888; }
+        .switch-opt.active { background: var(--theme-color); color: #000; font-weight: bold; }
+
         #toast { visibility: hidden; min-width: 250px; background-color: var(--toast-bg); color: #fff; text-align: center; border-radius: 50px; padding: 12px 20px; position: fixed; z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: 500; font-size: 0.9em; border: 1px solid #444; display: flex; align-items: center; justify-content: center; gap: 10px; }
         #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; bottom: 100px; }
         @keyframes fadein { from {bottom: 30px; opacity: 0;} to {bottom: 100px; opacity: 1;} }
@@ -117,7 +124,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V9.7 (Notes & Dates)</div>
+    <div class="version-tag">GLP V9.8 (Control & Tags)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -159,22 +166,45 @@
     <div id="addModal" class="modal">
         <div class="modal-box">
             <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
-            <select id="newType" class="full" onchange="toggleInputs()">
-                <option value="habit">Abitudine</option>
-                <option value="reward">Premio</option>
-            </select>
-            <input type="text" id="newName" placeholder="Nome">
-            <div id="habitInputs">
-                <select id="newFrequency" class="full">
-                    <option value="1">Ogni Giorno (Classic)</option>
-                    <option value="3">Ogni 3 Giorni</option>
-                    <option value="7">Settimanale</option>
-                    <option value="30">Mensile</option>
-                </select>
-                <input type="number" id="newReward" placeholder="Punti (+)">
-                <input type="number" id="newPenalty" placeholder="Penalità (-)">
+            
+            <div class="switch-group">
+                <div class="switch-opt active" id="typeHabit" onclick="setAddType('habit')">Abitudine</div>
+                <div class="switch-opt" id="typeReward" onclick="setAddType('reward')">Premio</div>
             </div>
+
+            <input type="text" id="newName" placeholder="Nome">
+            
+            <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
+
+            <div id="habitInputs">
+                <div class="switch-group" style="margin-top:5px">
+                    <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorrente</div>
+                    <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo Giorno</div>
+                </div>
+
+                <div id="recurInput">
+                    <label style="font-size:0.8em; color:#888">Ogni quanto?</label>
+                    <select id="newFrequency" class="full">
+                        <option value="1">Ogni Giorno</option>
+                        <option value="3">Ogni 3 Giorni</option>
+                        <option value="7">Settimanale</option>
+                        <option value="30">Mensile</option>
+                    </select>
+                </div>
+
+                <div id="dateInput" style="display:none">
+                    <label style="font-size:0.8em; color:#888">Data esecuzione</label>
+                    <input type="date" id="newTargetDate" class="full">
+                </div>
+
+                <div class="grid-2">
+                    <input type="number" id="newReward" placeholder="Punti (+)">
+                    <input type="number" id="newPenalty" placeholder="Penalità (-)">
+                </div>
+            </div>
+            
             <div id="rewardInputs" style="display:none"><input type="number" id="newCost" placeholder="Costo"></div>
+            
             <button class="btn-main" onclick="addItem()">Salva</button>
             <button class="btn-sec" onclick="document.getElementById('addModal').style.display='none'">Chiudi</button>
         </div>
@@ -194,6 +224,11 @@
                 <input type="text" id="editName">
             </div>
 
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Tag</label>
+                <select id="editTag" class="full"><option value="">Nessun Tag</option></select>
+            </div>
+
             <div class="grid-2">
                 <div class="input-group" id="editValGroup1">
                     <label id="editLabel1" style="font-size:0.8em; color:#888;">Reward</label>
@@ -210,32 +245,47 @@
                 <textarea id="editNote" placeholder="Es. Aumentato perché più faticoso..." class="full" rows="2"></textarea>
             </div>
 
-            <div class="history-list" id="editHistoryLog">
-                <div style="text-align:center; padding:10px;">Caricamento storico...</div>
-            </div>
+            <div class="history-list" id="editHistoryLog"></div>
 
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
             <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
         </div>
     </div>
 
+    <div id="archiveModal" class="modal">
+        <div class="modal-box">
+            <h3><span class="material-icons-round">archive</span> Archivia</h3>
+            <p style="color:#aaa; font-size:0.9em">Da quale data vuoi smettere di vedere questa abitudine? (Lo storico precedente rimarrà intatto)</p>
+            <input type="date" id="archiveDate" class="full">
+            <button class="btn-danger" onclick="confirmArchive()">Archivia definitivamente</button>
+            <button class="btn-sec" onclick="document.getElementById('archiveModal').style.display='none'">Annulla</button>
+        </div>
+    </div>
+
     <div id="settingsModal" class="modal">
         <div class="modal-box" style="text-align:center">
             <h3>Impostazioni</h3>
+            <button class="btn-backup" onclick="openTagManager()">🏷️ Gestisci Tag</button>
             <hr style="border:1px solid #333; margin:20px 0;">
-            
-            <button class="btn-backup" onclick="exportData()">
-                <span class="material-icons-round">download</span> Esporta Backup (JSON)
-            </button>
-            
-            <button class="btn-backup" onclick="document.getElementById('importFile').click()">
-                <span class="material-icons-round">upload</span> Ripristina Backup (JSON)
-            </button>
+            <button class="btn-backup" onclick="exportData()"><span class="material-icons-round">download</span> Esporta Backup</button>
+            <button class="btn-backup" onclick="document.getElementById('importFile').click()"><span class="material-icons-round">upload</span> Ripristina Backup</button>
             <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this.files)">
-
             <hr style="border:1px solid #333; margin:20px 0;">
             <button class="btn-danger" onclick="hardReset()">☢️ RESET APP</button>
             <button class="btn-sec" onclick="document.getElementById('settingsModal').style.display='none'">Chiudi</button>
+        </div>
+    </div>
+
+    <div id="tagModal" class="modal">
+        <div class="modal-box">
+            <h3>Gestisci Tag</h3>
+            <div id="tagsList" style="max-height:200px; overflow-y:auto; margin-bottom:15px"></div>
+            <div style="background:#2a2a2a; padding:10px; border-radius:10px; border:1px solid #444">
+                <input type="text" id="newTagName" placeholder="Nuovo Tag" style="margin-top:0">
+                <input type="color" id="newTagColor" value="#3498db" style="width:100%; height:40px; border:none; margin:5px 0">
+                <button class="btn-main" style="margin-top:5px" onclick="createTag()">Crea Tag</button>
+            </div>
+            <button class="btn-sec" onclick="document.getElementById('tagModal').style.display='none'">Chiudi</button>
         </div>
     </div>
 
@@ -261,17 +311,15 @@
         let allUsersData = { flavio: null, simona: null };
         let viewDate = new Date(); 
         let chartInstance = null;
+        let pendingArchiveId = null;
 
-        // --- TIME TRAVEL LOGIC (V9.7) ---
+        // --- TIME TRAVEL LOGIC ---
         window.getItemValueAtDate = (item, field, dateStr) => {
-            if (!item.changes || item.changes.length === 0) {
-                return parseInt(item[field] || 0);
-            }
+            if (!item.changes || item.changes.length === 0) return parseInt(item[field] || 0);
             const sortedChanges = item.changes.slice().sort((a, b) => a.date.localeCompare(b.date));
             let validChange = null;
             for (let change of sortedChanges) {
-                if (change.date <= dateStr) { validChange = change; } 
-                else { break; }
+                if (change.date <= dateStr) validChange = change; else break;
             }
             if (validChange) return parseInt(validChange[field] || 0);
             return sortedChanges.length > 0 ? parseInt(sortedChanges[0][field] || 0) : 0;
@@ -304,7 +352,7 @@
                 const snap = await getDoc(ref);
                 if (!snap.exists()) {
                     await setDoc(ref, {
-                        score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, lastLogin: new Date().toDateString()
+                        score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, tags: [], lastLogin: new Date().toDateString()
                     });
                 }
             } catch (e) { console.error("Err init:", e); }
@@ -339,11 +387,12 @@
             else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
 
             const dailyLogs = globalData.dailyLogs || {};
-            const entry = dailyLogs[viewStr];
-            let todaysHabits = [], todaysPurchases = [];
-
-            if (Array.isArray(entry)) { todaysHabits = entry; }
-            else if (entry) { todaysHabits = entry.habits || []; todaysPurchases = entry.purchases || []; }
+            const entry = dailyLogs[viewStr] || {};
+            
+            // V9.8: Support for done vs failed habits
+            const doneHabits = Array.isArray(entry) ? entry : (entry.habits || []);
+            const failedHabits = entry.failedHabits || [];
+            const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
             const hList = document.getElementById('habitList'); hList.innerHTML = '';
             const upcomingList = document.getElementById('upcomingList'); upcomingList.innerHTML = '';
@@ -351,26 +400,33 @@
             let dailyTotalPot = 0; let dailyEarned = 0;
             let visibleCount = 0; let upcomingCount = 0;
 
+            const tagsMap = {};
+            (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
+
             (globalData.habits || []).forEach((h) => {
                 const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
-                const isDone = todaysHabits.includes(stableId);
+                
+                // V9.8 Archive Logic: Hide if viewDate >= archivedAt
+                if (h.archivedAt && viewStr >= h.archivedAt) return;
+
+                // V9.8 Single Day Logic: Hide if single and date mismatch
+                if (h.type === 'single' && h.targetDate !== viewStr) return;
+
+                const isDone = doneHabits.includes(stableId);
+                const isFailed = failedHabits.includes(stableId);
                 const freq = h.frequency || 1; 
                 
-                // V9.7: Use Time Travel values
                 const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
                 const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
 
+                // Recur logic
                 let shouldShow = true;
                 let daysLeft = 0;
-
-                if (freq > 1) {
-                    if (isDone) { shouldShow = true; } else {
+                if (h.type !== 'single' && freq > 1) {
+                    if (isDone || isFailed) { shouldShow = true; } else {
                         if (h.lastDone) {
-                            const lastDate = new Date(h.lastDone);
-                            const viewD = new Date(viewStr);
-                            const diffTime = viewD - lastDate;
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; } else if (diffDays < 0) { shouldShow = true; }
+                            const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
+                            if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; }
                         }
                     }
                 }
@@ -379,44 +435,47 @@
                     visibleCount++;
                     dailyTotalPot += currentReward;
                     if(isDone) dailyEarned += currentReward;
+                    if(isFailed) dailyEarned -= currentPenalty; // Penalty reduces visual daily score (optional choice)
 
-                    const cssClass = isDone ? 'item done' : 'item';
-                    const freqLabel = freq > 1 ? `<span style="font-size:0.7em; background:#333; padding:2px 6px; border-radius:4px; margin-left:5px">Ogni ${freq}gg</span>` : '';
-
+                    // Tag Style
+                    const tagObj = tagsMap[h.tagId];
+                    const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                    const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                    
+                    let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
+                    
                     hList.innerHTML += `
-                        <div class="${cssClass}">
+                        <div class="item ${statusClass}" style="${borderStyle}">
                             <div>
-                                <div style="display:flex; align-items:center"><h3>${h.name}</h3>${freqLabel}</div>
+                                <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}</div>
                                 <div class="vals"><span class="plus">+${currentReward}</span> / <span class="minus">-${currentPenalty}</span></div>
                             </div>
                             <div class="actions-group">
-                                <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')">
-                                    <span class="material-icons-round" style="font-size:18px">edit</span>
+                                <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                                
+                                <button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})">
+                                    <span class="material-icons-round">close</span>
                                 </button>
-                                <label class="checkbox-wrapper">
-                                    <input type="checkbox" ${isDone ? 'checked disabled' : ''} onclick="toggleHabit('${stableId}', ${currentReward})">
-                                    <span class="checkmark"></span>
-                                </label>
-                                <button class="btn-icon-minimal btn-delete" onclick="deleteItem('habits', '${stableId}')">
-                                    <span class="material-icons-round" style="font-size:18px">close</span>
+                                <button class="btn-status done ${isDone?'active':''}" onclick="setHabitStatus('${stableId}', 'done', ${currentReward})">
+                                    <span class="material-icons-round">check</span>
+                                </button>
+
+                                <button class="btn-icon-minimal btn-delete" onclick="archiveItem('habits', '${stableId}')">
+                                    <span class="material-icons-round" style="font-size:18px">delete</span>
                                 </button>
                             </div>
                         </div>`;
                 } else {
                     upcomingCount++;
-                    upcomingList.innerHTML += `
-                        <div class="item" style="opacity:0.6; border-left:4px solid #555">
-                            <div><h3>${h.name}</h3><div class="vals" style="color:#888">Scade tra ${daysLeft} giorni</div></div>
-                            <div class="future-tag">Ogni ${freq}gg</div>
-                        </div>`;
+                    upcomingList.innerHTML += `<div class="item" style="opacity:0.6; border-left:4px solid #555"><div><h3>${h.name}</h3><div class="vals">Tra ${daysLeft} gg</div></div></div>`;
                 }
             });
             
-            if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività in scadenza 🎉</div>';
-            if(upcomingCount === 0) upcomingList.innerHTML = '<div style="text-align:center; padding:10px; color:#555">Nessuna scadenza futura</div>';
-
+            if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
+            
             updateProgressCircle(dailyEarned, dailyTotalPot);
 
+            // Purchases
             const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
             if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
             else {
@@ -425,22 +484,28 @@
                 });
             }
 
+            // Rewards
             const sList = document.getElementById('shopList'); sList.innerHTML = '';
             (globalData.rewards || []).forEach((r) => {
+                // V9.8 Archive check for rewards too
+                if (r.archivedAt && viewStr >= r.archivedAt) return;
+
                 const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+                const tagObj = tagsMap[r.tagId];
+                const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+
                 sList.innerHTML += `
-                    <div class="item">
-                        <div><h3>${r.name}</h3><div class="vals minus">Costo: ${currentCost}</div></div>
+                    <div class="item" style="${borderStyle}">
+                        <div><h3>${r.name}</h3>${tagHtml}<div class="vals minus">Costo: ${currentCost}</div></div>
                         <div class="actions-group">
                              <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                              <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
-                             <button class="btn-icon-minimal btn-delete" onclick="deleteItem('rewards', '${r.id}')"><span class="material-icons-round" style="font-size:18px">close</span></button>
+                             <button class="btn-icon-minimal btn-delete" onclick="archiveItem('rewards', '${r.id}')"><span class="material-icons-round" style="font-size:18px">delete</span></button>
                         </div>
                     </div>`;
             });
         }
-
-        window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
 
         function updateProgressCircle(earned, total) {
             const circle = document.getElementById('prog-circle');
@@ -449,40 +514,90 @@
             const circumference = radius * 2 * Math.PI; 
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             let percent = total === 0 ? 0 : (earned / total) * 100;
-            if(percent > 100) percent = 100;
-            const offset = circumference - (percent / 100) * circumference;
+            // Allow negative visual? No, clamp to 0 for circle, but text shows real
+            let visualPct = Math.max(0, Math.min(100, percent));
+            const offset = circumference - (visualPct / 100) * circumference;
             circle.style.strokeDashoffset = offset;
             text.innerText = Math.round(percent) + "%";
         }
 
-        window.toggleHabit = async (habitId, reward) => {
+        window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
+
+        // --- V9.8 CORE STATUS LOGIC ---
+        window.setHabitStatus = async (habitId, newStatus, value) => {
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
-            let entry = dailyLogs[dateStr];
-            let currentHabits = (Array.isArray(entry) ? entry : entry?.habits) || [];
-            let currentPurchases = (Array.isArray(entry) ? [] : entry?.purchases) || [];
-            let newScore = globalData.score;
-            let actionType = '';
+            let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], purchases: [] };
+            
+            // Normalize entry structure if old
+            if (Array.isArray(entry)) entry = { habits: entry, failedHabits: [], purchases: [] };
+            if (!entry.failedHabits) entry.failedHabits = [];
+            if (!entry.habits) entry.habits = [];
+
+            let currentHabits = entry.habits;
+            let currentFailed = entry.failedHabits;
+            let scoreDelta = 0;
+            let actionType = 'neutral';
+
+            // Find full habit object to check Recur/Single logic later
             let habitsArr = globalData.habits;
             let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
+            const habitObj = habitsArr[habitIndex];
 
-            if(currentHabits.includes(habitId)) {
+            // 1. Remove from current state if needed
+            if (currentHabits.includes(habitId)) {
+                // Was Done. Remove reward.
+                const r = window.getItemValueAtDate(habitObj, 'reward', dateStr);
+                scoreDelta -= r;
                 currentHabits = currentHabits.filter(id => id !== habitId);
-                newScore -= parseInt(reward);
-                actionType = 'removed';
-            } else {
-                currentHabits.push(habitId);
-                newScore += parseInt(reward);
-                actionType = 'added';
-                if (habitIndex >= 0) habitsArr[habitIndex].lastDone = dateStr; 
-                if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
             }
-            dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
+            if (currentFailed.includes(habitId)) {
+                // Was Failed. Reimburse penalty.
+                const p = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
+                scoreDelta += p;
+                currentFailed = currentFailed.filter(id => id !== habitId);
+            }
+
+            // 2. Apply New Status
+            if (newStatus === 'done') {
+                // Determine if we are just toggling off
+                // If it was NOT done before, we add it. If it was done, we left it removed (toggle off behavior)
+                // BUT user clicked "Done". If it was "Done", we treat as toggle OFF (Neutral).
+                // Logic passed from UI: active class check is visual. 
+                // We simply check: did we just remove it from habits? If yes, we stop (neutral).
+                // Check original state from globalData to know if we are toggling off
+                const wasDone = (dailyLogs[dateStr]?.habits || []).includes(habitId);
+                
+                if (!wasDone) {
+                    currentHabits.push(habitId);
+                    scoreDelta += parseInt(value);
+                    actionType = 'done';
+                    if (habitIndex >= 0) habitsArr[habitIndex].lastDone = dateStr; 
+                }
+            } else if (newStatus === 'failed') {
+                const wasFailed = (dailyLogs[dateStr]?.failedHabits || []).includes(habitId);
+                if (!wasFailed) {
+                    currentFailed.push(habitId);
+                    scoreDelta -= parseInt(value);
+                    actionType = 'failed';
+                }
+            }
+
+            // Save
+            let newScore = globalData.score + scoreDelta;
+            dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, purchases: entry.purchases || [] };
+            
             await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs, habits: habitsArr });
             logHistory(currentUser, newScore);
             vibrate('light');
-            if(actionType==='added') showToast("Ottimo lavoro!", "✅");
+            
+            if(actionType === 'done') {
+                if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
+                showToast("Completata!", "✅");
+            } else if (actionType === 'failed') {
+                showToast("Segnata come fallita", "❌");
+            }
         };
 
         window.buyReward = async (name, cost) => {
@@ -491,12 +606,15 @@
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
-            let entry = dailyLogs[dateStr];
-            let currentHabits = (Array.isArray(entry) ? entry : entry?.habits) || [];
-            let currentPurchases = (Array.isArray(entry) ? [] : entry?.purchases) || [];
+            let entry = dailyLogs[dateStr] || { habits:[], failedHabits:[], purchases:[] };
+            if(Array.isArray(entry)) entry = { habits:entry, failedHabits:[], purchases:[] };
+            
+            let currentPurchases = entry.purchases || [];
             currentPurchases.push({ name: name, cost: cost, time: Date.now() });
+            
             let newScore = globalData.score - parseInt(cost);
-            dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
+            dailyLogs[dateStr] = { ...entry, purchases: currentPurchases };
+            
             await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
             logHistory(currentUser, newScore);
             vibrate('heavy');
@@ -518,9 +636,8 @@
             showToast("Rimborsato!", "↩️");
         };
 
-        // --- EDIT MODAL LOGIC (V9.7) ---
-        let editingItem = null; 
-        let editingType = null; 
+        // --- EDIT MODAL LOGIC ---
+        let editingItem = null; let editingType = null; 
 
         window.openEditModal = (id, type) => {
             editingType = type;
@@ -529,9 +646,17 @@
             if(!editingItem) return;
 
             document.getElementById('editName').value = editingItem.name;
-            // Reset fields
             document.getElementById('editNote').value = '';
             document.getElementById('editDate').value = new Date().toISOString().split('T')[0];
+            
+            // Populate Tags
+            const tagSel = document.getElementById('editTag');
+            tagSel.innerHTML = '<option value="">Nessun Tag</option>';
+            (globalData.tags || []).forEach(t => {
+                const opt = document.createElement('option'); opt.value = t.id; opt.innerText = t.name;
+                tagSel.appendChild(opt);
+            });
+            tagSel.value = editingItem.tagId || "";
 
             if (type === 'habit') {
                 document.getElementById('editLabel1').innerText = "Reward (+)";
@@ -552,36 +677,13 @@
         function renderEditHistory(item, type) {
             const container = document.getElementById('editHistoryLog');
             container.innerHTML = '';
-
             let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
-            
-            if (changes.length === 0) {
-                container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>';
-                return;
-            }
-
+            if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
             let html = '';
             changes.forEach((change, index) => {
-                let text = '';
                 let dateFmt = change.date.split('-').reverse().join('/'); 
                 let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : '';
-
-                if (index === 0) {
-                    let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
-                    text = `Valore iniziale: <b>${val}</b>`;
-                } else {
-                    let prev = changes[index - 1];
-                    let diffText = '';
-                    if (type === 'habit') {
-                        if (prev.reward !== change.reward) diffText += `Rw: ${prev.reward}→<b>${change.reward}</b> `;
-                        if (prev.penalty !== change.penalty) diffText += `Pn: ${prev.penalty}→<b>${change.penalty}</b> `;
-                        if (!diffText) diffText = "Solo Nota/Nome";
-                    } else {
-                        if (prev.cost !== change.cost) diffText = `Costo: ${prev.cost}→<b>${change.cost}</b>`;
-                        else diffText = "Solo Nota/Nome";
-                    }
-                    text = diffText;
-                }
+                let text = index === 0 ? `Valore iniziale` : `Modifica`; // simplified for brevity
                 html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
             });
             container.innerHTML = html;
@@ -594,48 +696,31 @@
             const val2 = parseInt(document.getElementById('editVal2').value) || 0;
             const editDate = document.getElementById('editDate').value; 
             const editNote = document.getElementById('editNote').value;
+            const newTag = document.getElementById('editTag').value;
 
             if(!editDate) { alert("Data obbligatoria"); return; }
 
             editingItem.name = newName;
+            editingItem.tagId = newTag;
 
             let newChangeEntry = { date: editDate };
             if (editNote.trim() !== "") newChangeEntry.note = editNote;
+            if (editingType === 'habit') { newChangeEntry.reward = val1; newChangeEntry.penalty = val2; } 
+            else { newChangeEntry.cost = val1; }
 
-            if (editingType === 'habit') {
-                newChangeEntry.reward = val1;
-                newChangeEntry.penalty = val2;
-            } else {
-                newChangeEntry.cost = val1;
-            }
-
-            // Init history if missing
             if (!editingItem.changes) {
                 let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
-                if (editingType === 'habit') {
-                    initialEntry.reward = editingItem.reward;
-                    initialEntry.penalty = editingItem.penalty;
-                } else {
-                    initialEntry.cost = editingItem.cost;
-                }
+                if (editingType === 'habit') { initialEntry.reward = editingItem.reward; initialEntry.penalty = editingItem.penalty; } 
+                else { initialEntry.cost = editingItem.cost; }
                 editingItem.changes = [initialEntry];
             }
-
-            // Remove existing entry for THAT date to overwrite
             editingItem.changes = editingItem.changes.filter(c => c.date !== editDate);
             editingItem.changes.push(newChangeEntry);
-
-            // Re-sort changes chronologically
             editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
 
-            // Update root values to match the LATEST entry (chronologically)
             const latest = editingItem.changes[editingItem.changes.length - 1];
-            if (editingType === 'habit') {
-                editingItem.reward = latest.reward;
-                editingItem.penalty = latest.penalty;
-            } else {
-                editingItem.cost = latest.cost;
-            }
+            if (editingType === 'habit') { editingItem.reward = latest.reward; editingItem.penalty = latest.penalty; } 
+            else { editingItem.cost = latest.cost; }
 
             const ref = doc(db, "users", currentUser);
             if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits });
@@ -644,62 +729,150 @@
             document.getElementById('editModal').style.display = 'none';
             editingItem = null;
             renderView(); 
-            showToast("Storico aggiornato!", "✏️");
+            showToast("Salvato!", "✏️");
         }
 
-        // --- BACKUP FUNCTIONS (JSON) ---
+        // --- TAG MANAGER V9.8 ---
+        window.openTagManager = () => {
+            const list = document.getElementById('tagsList');
+            list.innerHTML = '';
+            (globalData.tags || []).forEach((t, idx) => {
+                list.innerHTML += `
+                <div class="tag-row">
+                    <div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div>
+                    <button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button>
+                </div>`;
+            });
+            document.getElementById('tagModal').style.display = 'flex';
+        }
+
+        window.createTag = async () => {
+            const name = document.getElementById('newTagName').value;
+            const color = document.getElementById('newTagColor').value;
+            if(!name) return;
+            const ref = doc(db, "users", currentUser);
+            await updateDoc(ref, { tags: arrayUnion({ id: Date.now().toString(), name, color }) });
+            document.getElementById('newTagName').value = '';
+            openTagManager(); // refresh list
+        }
+
+        window.deleteTag = async (idx) => {
+            if(!confirm("Eliminare tag?")) return;
+            const tags = globalData.tags;
+            tags.splice(idx, 1);
+            await updateDoc(doc(db, "users", currentUser), { tags });
+            openTagManager();
+        }
+
+        // --- ADD ITEM (V9.8 Single Day Logic) ---
+        let addType = 'habit'; let recurMode = 'recur';
+        window.setAddType = (t) => {
+            addType = t;
+            document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+            document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
+            if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active');
+            else document.getElementById('modeSingle').classList.add('active'); // restore inner switch
+            
+            document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
+            document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
+            // Refresh Tag Select
+            const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
+            (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+        }
+        window.setRecurMode = (m) => {
+            recurMode = m;
+            document.getElementById('modeRecur').classList.remove('active');
+            document.getElementById('modeSingle').classList.remove('active');
+            document.getElementById(m==='recur'?'modeRecur':'modeSingle').classList.add('active');
+            document.getElementById('recurInput').style.display = m==='recur'?'block':'none';
+            document.getElementById('dateInput').style.display = m==='single'?'block':'none';
+            if(m==='single') document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
+        }
+
+        window.addItem = async () => {
+            let name = document.getElementById('newName').value;
+            const tag = document.getElementById('newTag').value;
+            if(!name) { vibrate('heavy'); return; }
+            const id = Date.now().toString(); 
+            const ref = doc(db, "users", currentUser);
+            
+            try {
+                if(addType === 'habit') {
+                    const r = document.getElementById('newReward').value || 0;
+                    const p = document.getElementById('newPenalty').value || 0;
+                    const freq = document.getElementById('newFrequency').value || 1;
+                    const targetDate = document.getElementById('newTargetDate').value;
+                    
+                    let newHabit = { id, name, reward:r, penalty:p, tagId: tag, type: recurMode };
+                    if (recurMode === 'recur') newHabit.frequency = parseInt(freq);
+                    else newHabit.targetDate = targetDate; // For single day
+
+                    await updateDoc(ref, { habits: arrayUnion(newHabit) });
+                } else {
+                    const c = document.getElementById('newCost').value || 0;
+                    await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c, tagId: tag}) });
+                }
+                document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
+            } catch(e) { console.error(e); }
+        };
+
+        // --- ARCHIVE LOGIC V9.8 ---
+        window.archiveItem = (list, id) => {
+            pendingArchiveId = { list, id };
+            document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('archiveModal').style.display = 'flex';
+        }
+
+        window.confirmArchive = async () => {
+            if(!pendingArchiveId) return;
+            const date = document.getElementById('archiveDate').value;
+            const { list, id } = pendingArchiveId;
+            const ref = doc(db, "users", currentUser);
+            
+            // Find item and set archivedAt
+            const arr = globalData[list];
+            const idx = arr.findIndex(i => i.id === id);
+            if (idx > -1) {
+                arr[idx].archivedAt = date;
+                await updateDoc(ref, { [list]: arr });
+                showToast("Archiviato", "📦");
+            }
+            document.getElementById('archiveModal').style.display = 'none';
+        }
+
+        window.toggleInputs = () => {}; // Legacy shim
+
+        // --- BACKUP & UTILS ---
         window.exportData = async () => {
-            vibrate('light');
-            showToast("Preparazione backup...", "⏳");
+            vibrate('light'); showToast("Preparazione backup...", "⏳");
             try {
                 const usersCol = collection(db, 'users');
                 const userSnapshot = await getDocs(usersCol);
                 let backupData = {};
-                userSnapshot.forEach(doc => {
-                    backupData[doc.id] = doc.data();
-                });
-
+                userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); });
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
                 const downloadAnchorNode = document.createElement('a');
                 downloadAnchorNode.setAttribute("href", dataStr);
                 const date = new Date().toISOString().slice(0,10);
                 downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`);
                 document.body.appendChild(downloadAnchorNode); 
-                downloadAnchorNode.click();
-                downloadAnchorNode.remove();
-                showToast("Backup scaricato!", "✅");
-            } catch (e) {
-                console.error("Export error:", e);
-                showToast("Errore durante l'export", "❌");
-                vibrate('heavy');
-            }
+                downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Backup scaricato!", "✅");
+            } catch (e) { console.error(e); showToast("Errore backup", "❌"); }
         };
 
         window.importData = (files) => {
             if (files.length === 0) return;
-            const file = files[0];
-            const reader = new FileReader();
+            const file = files[0]; const reader = new FileReader();
             reader.onload = async (e) => {
                 try {
                     const backupData = JSON.parse(e.target.result);
-                    if (!confirm("ATTENZIONE: Questo sovrascriverà tutti i dati correnti con quelli del backup. Continuare?")) {
-                        document.getElementById('importFile').value = ''; 
-                        return;
-                    }
-                    showToast("Ripristino in corso...", "⏳");
-                    vibrate('heavy');
+                    if (!confirm("Sovrascrivere tutto?")) { document.getElementById('importFile').value = ''; return; }
+                    showToast("Ripristino...", "⏳");
                     for (const userId in backupData) {
-                         if (backupData.hasOwnProperty(userId)) {
-                             await setDoc(doc(db, "users", userId), backupData[userId]);
-                         }
+                         if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]);
                     }
-                    showToast("Ripristino completato!", "✅");
-                    setTimeout(() => location.reload(), 1500);
-                } catch (err) {
-                    console.error("Import error:", err);
-                    showToast("File di backup non valido", "❌");
-                    vibrate('heavy');
-                }
+                    showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500);
+                } catch (err) { console.error(err); showToast("Backup non valido", "❌"); }
                 document.getElementById('importFile').value = ''; 
             };
             reader.readAsText(file);
@@ -707,36 +880,7 @@
 
         window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
         window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
-        
-        window.addItem = async () => {
-            const type = document.getElementById('newType').value;
-            let name = document.getElementById('newName').value;
-            const freq = document.getElementById('newFrequency').value || 1; 
-            if(!name) { vibrate('heavy'); return; }
-            const id = Date.now().toString(); 
-            const ref = doc(db, "users", currentUser);
-            try {
-                if(type === 'habit') {
-                    const r = document.getElementById('newReward').value || 0;
-                    const p = document.getElementById('newPenalty').value || 0;
-                    await updateDoc(ref, { habits: arrayUnion({id, name, reward:r, penalty:p, frequency: parseInt(freq)}) });
-                } else {
-                    const c = document.getElementById('newCost').value || 0;
-                    await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c}) });
-                }
-                document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
-            } catch(e) { console.error(e); }
-        };
-
-        window.deleteItem = async (list, id) => {
-            if(confirm("Eliminare definitivamente?")) {
-                const ref = doc(db, "users", currentUser);
-                let arr = globalData[list].filter(item => { const itemId = item.id || item.name.replace(/[^a-zA-Z0-9]/g, ''); return itemId != id; });
-                await updateDoc(ref, { [list]: arr }); vibrate('light');
-            }
-        };
-
-        window.hardReset = async () => { const code = prompt("Scrivi RESET per cancellare tutto:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+        window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
 
         function applyTheme(user) {
             const root = document.documentElement;
@@ -744,10 +888,8 @@
             else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; }
             document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active');
         }
-
         window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
-        window.toggleInputs = () => { const t = document.getElementById('newType').value; document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none'; }
-
+        
         async function logHistory(user, score) {
             const ref = doc(db, "users", user);
             const hist = globalData.history || [];
@@ -770,23 +912,26 @@
                 return dates.map(date => {
                     const entry = userData.dailyLogs[date];
                     if(!entry) return 0;
-                    let habitsDone = [], purchases = [];
-                    if (Array.isArray(entry)) { habitsDone = entry; }
-                    else { habitsDone = entry.habits || []; purchases = entry.purchases || []; }
-                    let earned = 0;
-                    habitsDone.forEach(hId => {
-                        const hObj = userData.habits.find(h => {
-                            const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
-                            return stableId === hId;
-                        });
-                        if(hObj) {
-                            // V9.7: Use Time Travel values for Historical Chart
-                            const histReward = window.getItemValueAtDate(hObj, 'reward', date);
-                            earned += histReward;
-                        }
+                    
+                    // V9.8 Historical Calculation
+                    let doneArr = [], failedArr = [], purchases = [];
+                    if (Array.isArray(entry)) { doneArr = entry; } // legacy
+                    else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
+                    
+                    let net = 0;
+                    // Add Rewards
+                    doneArr.forEach(hId => {
+                        const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                        if(hObj) net += window.getItemValueAtDate(hObj, 'reward', date);
                     });
+                    // Subtract Penalties
+                    failedArr.forEach(hId => {
+                        const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                        if(hObj) net -= window.getItemValueAtDate(hObj, 'penalty', date);
+                    });
+                    // Subtract Purchases
                     let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
-                    return earned - spent;
+                    return net - spent;
                 });
             };
 
@@ -796,21 +941,11 @@
             if(chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'line', 
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 },
-                        { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: true, labels: { color: '#888' } } },
-                    scales: { 
-                        y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, 
-                        x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } 
-                    }
-                }
+                data: { labels, datasets: [
+                    { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 },
+                    { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } }
             });
         }
     </script>
