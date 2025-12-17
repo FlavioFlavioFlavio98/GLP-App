@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>Gamification Life Project</title>
+    <title>GLP V10.0</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -19,7 +19,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V9.95 (PWA Edition)</div>
+    <div class="version-tag">GLP V10.0 (Stats & Polish)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -61,8 +61,7 @@
         </div>
         <div class="sum-item">
             <div class="sum-label">Netto</div>
-            <div class="sum-val net" id="sum-net">0</div>
-        </div>
+            <div class="sum-val" id="sum-net">0</div> </div>
     </div>
 
     <div id="mainContent">
@@ -185,6 +184,7 @@
     <div id="settingsModal" class="modal">
         <div class="modal-box" style="text-align:center">
             <h3>Impostazioni</h3>
+            <button class="btn-backup" onclick="openStats()">📊 Statistiche</button>
             <button class="btn-backup" onclick="openTagManager()">🏷️ Gestisci Tag</button>
             <hr style="border:1px solid #333; margin:20px 0;">
             <button class="btn-backup" onclick="exportData()"><span class="material-icons-round">download</span> Esporta Backup</button>
@@ -201,11 +201,20 @@
             <h3>Gestisci Tag</h3>
             <div id="tagsList" style="max-height:200px; overflow-y:auto; margin-bottom:15px"></div>
             <div style="background:#2a2a2a; padding:10px; border-radius:10px; border:1px solid #444">
-                <input type="text" id="newTagName" placeholder="Nuovo Tag" style="margin-top:0">
+                <input type="text" id="newTagName" placeholder="Nome Tag" style="margin-top:0">
                 <input type="color" id="newTagColor" value="#3498db" style="width:100%; height:40px; border:none; margin:5px 0">
-                <button class="btn-main" style="margin-top:5px" onclick="createTag()">Crea Tag</button>
+                <button id="btnSaveTag" class="btn-main" style="margin-top:5px" onclick="saveTagManager()">Crea Tag</button>
             </div>
             <button class="btn-sec" onclick="document.getElementById('tagModal').style.display='none'">Chiudi</button>
+        </div>
+    </div>
+
+    <div id="statsModal" class="modal">
+        <div class="modal-box" style="max-width:450px;">
+            <h3>📊 Statistiche Utente</h3>
+            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                </div>
+            <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
         </div>
     </div>
 
@@ -215,8 +224,8 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW registrato:', reg.scope))
-                    .catch(err => console.log('SW fallito:', err));
+                    .then(reg => console.log('SW ok:', reg.scope))
+                    .catch(err => console.log('SW err:', err));
             });
         }
     </script>

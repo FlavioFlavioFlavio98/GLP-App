@@ -20,6 +20,7 @@ let allUsersData = { flavio: null, simona: null };
 let viewDate = new Date(); 
 let chartInstance = null;
 let pendingArchiveId = null;
+let editingTagIndex = null; // V10 for tag edit
 
 // --- HELPERS ---
 window.getItemValueAtDate = (item, field, dateStr) => {
@@ -55,7 +56,6 @@ function handleSwipe() {
 window.addEventListener('online', () => document.body.classList.remove('offline'));
 window.addEventListener('offline', () => document.body.classList.add('offline'));
 
-// INIT
 applyTheme(currentUser);
 initApp();
 
@@ -166,11 +166,15 @@ function renderView() {
             const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
             let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
             
+            // V10: Badge visual style for values
             hList.innerHTML += `
                 <div class="item ${statusClass}" style="${borderStyle}">
                     <div>
                         <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}</div>
-                        <div class="vals"><span class="plus">+${currentReward}</span> / <span class="minus">-${currentPenalty}</span></div>
+                        <div class="vals">
+                            <span class="val-badge plus">+${currentReward}</span> / 
+                            <span class="val-badge minus">-${currentPenalty}</span>
+                        </div>
                     </div>
                     <div class="actions-group">
                         <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
@@ -186,7 +190,6 @@ function renderView() {
     
     if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
     
-    // Purchases
     let purchaseCost = 0;
     const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
     if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
@@ -199,15 +202,21 @@ function renderView() {
     
     dailySpent += purchaseCost;
     
-    // Update Summary
+    // V10 Summary Colors (Semaforo)
+    const net = dailyEarned - dailySpent;
     document.getElementById('sum-earn').innerText = `+${dailyEarned}`;
     document.getElementById('sum-spent').innerText = `-${dailySpent}`;
-    const net = dailyEarned - dailySpent;
-    document.getElementById('sum-net').innerText = (net > 0 ? '+' : '') + net;
+    
+    const netEl = document.getElementById('sum-net');
+    netEl.innerText = (net > 0 ? '+' : '') + net;
+    netEl.className = 'sum-val'; // reset
+    if (net < 0) netEl.classList.add('net-neg');
+    else if (net < 10) netEl.classList.add('net-warn');
+    else netEl.classList.add('net-pos');
 
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
-    // Rewards
+    // V10 Shop: Visuals & Text
     const sList = document.getElementById('shopList'); sList.innerHTML = '';
     (globalData.rewards || []).forEach((r) => {
         if (r.archivedAt && viewStr >= r.archivedAt) return;
@@ -216,11 +225,15 @@ function renderView() {
         const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
         const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
         const count = countRewardPurchases(r.name);
-        const countHtml = count > 0 ? `<span class="count-badge">x${count}</span>` : '';
+        const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
 
         sList.innerHTML += `
             <div class="item" style="${borderStyle}">
-                <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div class="vals minus">Costo: ${currentCost}</div></div>
+                <div>
+                    <h3>${r.name}</h3>${tagHtml}
+                    ${countHtml}
+                    <div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div>
+                </div>
                 <div class="actions-group">
                         <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                         <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
@@ -390,7 +403,7 @@ function renderEditHistory(item, type) {
         let text = '';
 
         if (index === 0) {
-                let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
+            let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
             text = `Valore iniziale: <b>${val}</b>`;
         } else {
             let prev = changes[index - 1];
@@ -452,27 +465,63 @@ window.saveEdit = async () => {
     showToast("Salvato!", "✏️");
 }
 
+// --- V10 TAG MANAGER ---
 window.openTagManager = () => {
+    editingTagIndex = null;
+    document.getElementById('newTagName').value = '';
+    document.getElementById('btnSaveTag').innerText = "Crea Tag";
+    renderTagsList();
+    document.getElementById('tagModal').style.display = 'flex';
+}
+
+function renderTagsList() {
     const list = document.getElementById('tagsList');
     list.innerHTML = '';
     (globalData.tags || []).forEach((t, idx) => {
         list.innerHTML += `
         <div class="tag-row">
             <div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div>
-            <button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button>
+            <div>
+                <button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button>
+                <button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button>
+            </div>
         </div>`;
     });
-    document.getElementById('tagModal').style.display = 'flex';
 }
 
-window.createTag = async () => {
+window.editTag = (idx) => {
+    const t = globalData.tags[idx];
+    document.getElementById('newTagName').value = t.name;
+    document.getElementById('newTagColor').value = t.color;
+    editingTagIndex = idx;
+    document.getElementById('btnSaveTag').innerText = "Aggiorna Tag";
+}
+
+window.saveTagManager = async () => {
     const name = document.getElementById('newTagName').value;
     const color = document.getElementById('newTagColor').value;
     if(!name) return;
+
+    let tags = globalData.tags || [];
+
+    if (editingTagIndex !== null) {
+        // Edit existing
+        tags[editingTagIndex].name = name;
+        tags[editingTagIndex].color = color;
+    } else {
+        // Create new
+        tags.push({ id: Date.now().toString(), name, color });
+    }
+
     const ref = doc(db, "users", currentUser);
-    await updateDoc(ref, { tags: arrayUnion({ id: Date.now().toString(), name, color }) });
+    await updateDoc(ref, { tags: tags });
+    
+    // Reset
     document.getElementById('newTagName').value = '';
-    openTagManager(); // refresh list
+    editingTagIndex = null;
+    document.getElementById('btnSaveTag').innerText = "Crea Tag";
+    renderTagsList();
+    showToast("Tag salvato", "🏷️");
 }
 
 window.deleteTag = async (idx) => {
@@ -480,7 +529,7 @@ window.deleteTag = async (idx) => {
     const tags = globalData.tags;
     tags.splice(idx, 1);
     await updateDoc(doc(db, "users", currentUser), { tags });
-    openTagManager();
+    renderTagsList();
 }
 
 let addType = 'habit'; let recurMode = 'recur';
@@ -562,6 +611,96 @@ window.confirmArchive = async () => {
 }
 
 window.toggleInputs = () => {}; 
+
+// --- V10 STATS CALCULATOR ---
+window.openStats = () => {
+    if (!globalData || !globalData.dailyLogs) return;
+    
+    let totalNet = 0;
+    let daysCount = 0;
+    let maxNet = -Infinity; let bestDay = '-';
+    let minNet = Infinity; let worstDay = '-';
+    let habitCounts = {}; 
+    let rewardCounts = {};
+
+    const dates = Object.keys(globalData.dailyLogs).sort();
+    
+    dates.forEach(date => {
+        daysCount++;
+        const entry = globalData.dailyLogs[date];
+        let doneArr = [], failedArr = [], purchases = [];
+        if (Array.isArray(entry)) { doneArr = entry; } 
+        else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
+
+        // Counts
+        doneArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) {
+                habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+            }
+        });
+        purchases.forEach(p => {
+            rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1;
+        });
+
+        // Net calc for day
+        let dayEarn = 0; let daySpent = 0;
+        doneArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) dayEarn += window.getItemValueAtDate(h, 'reward', date);
+        });
+        failedArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) daySpent += window.getItemValueAtDate(h, 'penalty', date);
+        });
+        let pCost = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
+        daySpent += pCost;
+
+        let dayNet = dayEarn - daySpent;
+        totalNet += dayNet;
+
+        if (dayNet > maxNet) { maxNet = dayNet; bestDay = date; }
+        if (dayNet < minNet) { minNet = dayNet; worstDay = date; }
+    });
+
+    const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0;
+    
+    // Find best habit/reward
+    let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-');
+    let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-');
+
+    const html = `
+        <div class="stat-card">
+            <span class="stat-val">${avg}</span>
+            <span class="stat-label">Media Netta</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-val">${daysCount}</span>
+            <span class="stat-label">Giorni Attivi</span>
+        </div>
+        <div class="stat-card" style="border-color:var(--success)">
+            <span class="stat-val" style="color:var(--success)">+${maxNet === -Infinity ? 0 : maxNet}</span>
+            <span class="stat-label">Best Day</span>
+            <span class="stat-sub">${bestDay.split('-').reverse().join('/')}</span>
+        </div>
+        <div class="stat-card" style="border-color:var(--danger)">
+            <span class="stat-val" style="color:var(--danger)">${minNet === Infinity ? 0 : minNet}</span>
+            <span class="stat-label">Worst Day</span>
+            <span class="stat-sub">${worstDay.split('-').reverse().join('/')}</span>
+        </div>
+        <div class="stat-card" style="grid-column: span 2">
+            <span class="stat-val" style="font-size:1.1em">${bestHabit}</span>
+            <span class="stat-label">Abitudine Costante</span>
+        </div>
+        <div class="stat-card" style="grid-column: span 2">
+            <span class="stat-val" style="font-size:1.1em">${favReward}</span>
+            <span class="stat-label">Premio Preferito</span>
+        </div>
+    `;
+
+    document.getElementById('statsContent').innerHTML = html;
+    document.getElementById('statsModal').style.display = 'flex';
+}
 
 window.exportData = async () => {
     vibrate('light'); showToast("Preparazione backup...", "⏳");
