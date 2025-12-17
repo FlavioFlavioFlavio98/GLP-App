@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V9.8 (Tags & Control)</title>
+    <title>GLP V9.9 (History Fix)</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -70,8 +70,9 @@
         
         .vals { font-size: 0.8em; color: #888; margin-top: 4px; } .plus { color: var(--success); } .minus { color: var(--danger); }
         .tag-pill { font-size: 0.65em; padding: 2px 6px; border-radius: 4px; color: #fff; background: #444; margin-left: 6px; text-transform: uppercase; font-weight: bold; vertical-align: middle; }
+        .count-badge { background: #333; color: #aaa; font-size: 0.7em; padding: 2px 6px; border-radius: 10px; margin-left: 5px; vertical-align: middle; }
 
-        /* ACTION BUTTONS (V9.8) */
+        /* ACTION BUTTONS */
         .actions-group { display: flex; gap: 8px; align-items: center; }
         .btn-status { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; background: transparent; color: #666; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
         
@@ -98,7 +99,7 @@
         .btn-danger { width: 100%; background: #2a1a1a; color: var(--danger); border: 1px solid var(--danger); padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold; cursor: pointer;}
         .btn-backup { width: 100%; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;}
 
-        /* EDIT MODAL SPECIFIC (V9.6/V9.7) */
+        /* EDIT MODAL SPECIFIC */
         .grid-2 { display: flex; gap: 10px; }
         .grid-2 .input-group { flex: 1; }
         .history-list { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; font-size: 0.85rem; color: var(--text-sec); max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); }
@@ -107,7 +108,7 @@
         .history-date { color: var(--theme-color); font-weight: bold; font-size: 0.8rem; }
         .history-note { font-style: italic; color: #888; margin-top: 2px; font-size: 0.8em; border-left: 2px solid #555; padding-left: 5px; }
 
-        /* TAG MANAGER STYLES (V9.8) */
+        /* TAG MANAGER STYLES */
         .tag-row { display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 8px 12px; margin-bottom: 5px; border-radius: 8px; }
         .color-dot { width: 15px; height: 15px; border-radius: 50%; margin-right: 10px; display: inline-block; }
         .switch-group { display: flex; background: #2a2a2a; border-radius: 8px; padding: 4px; margin: 10px 0; border: 1px solid #444; }
@@ -124,7 +125,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V9.8 (Control & Tags)</div>
+    <div class="version-tag">GLP V9.9 (History Fix & Stats)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -173,7 +174,6 @@
             </div>
 
             <input type="text" id="newName" placeholder="Nome">
-            
             <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
 
             <div id="habitInputs">
@@ -255,7 +255,7 @@
     <div id="archiveModal" class="modal">
         <div class="modal-box">
             <h3><span class="material-icons-round">archive</span> Archivia</h3>
-            <p style="color:#aaa; font-size:0.9em">Da quale data vuoi smettere di vedere questa abitudine? (Lo storico precedente rimarrà intatto)</p>
+            <p style="color:#aaa; font-size:0.9em">Da quale data vuoi smettere di vedere questa abitudine?</p>
             <input type="date" id="archiveDate" class="full">
             <button class="btn-danger" onclick="confirmArchive()">Archivia definitivamente</button>
             <button class="btn-sec" onclick="document.getElementById('archiveModal').style.display='none'">Annulla</button>
@@ -325,6 +325,19 @@
             return sortedChanges.length > 0 ? parseInt(sortedChanges[0][field] || 0) : 0;
         };
 
+        // --- HELPER: Count Reward Purchases (V9.9) ---
+        function countRewardPurchases(rewardName) {
+            if (!globalData || !globalData.dailyLogs) return 0;
+            let count = 0;
+            Object.values(globalData.dailyLogs).forEach(log => {
+                let purchases = Array.isArray(log) ? [] : (log.purchases || []);
+                purchases.forEach(p => {
+                    if (p.name === rewardName) count++;
+                });
+            });
+            return count;
+        }
+
         // SWIPE
         let touchStartX = 0; let touchEndX = 0;
         document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
@@ -389,7 +402,6 @@
             const dailyLogs = globalData.dailyLogs || {};
             const entry = dailyLogs[viewStr] || {};
             
-            // V9.8: Support for done vs failed habits
             const doneHabits = Array.isArray(entry) ? entry : (entry.habits || []);
             const failedHabits = entry.failedHabits || [];
             const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
@@ -406,10 +418,7 @@
             (globalData.habits || []).forEach((h) => {
                 const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
                 
-                // V9.8 Archive Logic: Hide if viewDate >= archivedAt
                 if (h.archivedAt && viewStr >= h.archivedAt) return;
-
-                // V9.8 Single Day Logic: Hide if single and date mismatch
                 if (h.type === 'single' && h.targetDate !== viewStr) return;
 
                 const isDone = doneHabits.includes(stableId);
@@ -419,7 +428,6 @@
                 const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
                 const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
 
-                // Recur logic
                 let shouldShow = true;
                 let daysLeft = 0;
                 if (h.type !== 'single' && freq > 1) {
@@ -435,9 +443,8 @@
                     visibleCount++;
                     dailyTotalPot += currentReward;
                     if(isDone) dailyEarned += currentReward;
-                    if(isFailed) dailyEarned -= currentPenalty; // Penalty reduces visual daily score (optional choice)
+                    if(isFailed) dailyEarned -= currentPenalty; 
 
-                    // Tag Style
                     const tagObj = tagsMap[h.tagId];
                     const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
                     const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
@@ -475,7 +482,6 @@
             
             updateProgressCircle(dailyEarned, dailyTotalPot);
 
-            // Purchases
             const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
             if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
             else {
@@ -484,20 +490,22 @@
                 });
             }
 
-            // Rewards
             const sList = document.getElementById('shopList'); sList.innerHTML = '';
             (globalData.rewards || []).forEach((r) => {
-                // V9.8 Archive check for rewards too
                 if (r.archivedAt && viewStr >= r.archivedAt) return;
 
                 const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
                 const tagObj = tagsMap[r.tagId];
                 const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
                 const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                
+                // V9.9: Purchase Count
+                const count = countRewardPurchases(r.name);
+                const countHtml = count > 0 ? `<span class="count-badge">x${count}</span>` : '';
 
                 sList.innerHTML += `
                     <div class="item" style="${borderStyle}">
-                        <div><h3>${r.name}</h3>${tagHtml}<div class="vals minus">Costo: ${currentCost}</div></div>
+                        <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div class="vals minus">Costo: ${currentCost}</div></div>
                         <div class="actions-group">
                              <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                              <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
@@ -514,7 +522,6 @@
             const circumference = radius * 2 * Math.PI; 
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             let percent = total === 0 ? 0 : (earned / total) * 100;
-            // Allow negative visual? No, clamp to 0 for circle, but text shows real
             let visualPct = Math.max(0, Math.min(100, percent));
             const offset = circumference - (visualPct / 100) * circumference;
             circle.style.strokeDashoffset = offset;
@@ -523,14 +530,12 @@
 
         window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
 
-        // --- V9.8 CORE STATUS LOGIC ---
         window.setHabitStatus = async (habitId, newStatus, value) => {
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
             let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], purchases: [] };
             
-            // Normalize entry structure if old
             if (Array.isArray(entry)) entry = { habits: entry, failedHabits: [], purchases: [] };
             if (!entry.failedHabits) entry.failedHabits = [];
             if (!entry.habits) entry.habits = [];
@@ -540,35 +545,23 @@
             let scoreDelta = 0;
             let actionType = 'neutral';
 
-            // Find full habit object to check Recur/Single logic later
             let habitsArr = globalData.habits;
             let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
             const habitObj = habitsArr[habitIndex];
 
-            // 1. Remove from current state if needed
             if (currentHabits.includes(habitId)) {
-                // Was Done. Remove reward.
                 const r = window.getItemValueAtDate(habitObj, 'reward', dateStr);
                 scoreDelta -= r;
                 currentHabits = currentHabits.filter(id => id !== habitId);
             }
             if (currentFailed.includes(habitId)) {
-                // Was Failed. Reimburse penalty.
                 const p = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
                 scoreDelta += p;
                 currentFailed = currentFailed.filter(id => id !== habitId);
             }
 
-            // 2. Apply New Status
             if (newStatus === 'done') {
-                // Determine if we are just toggling off
-                // If it was NOT done before, we add it. If it was done, we left it removed (toggle off behavior)
-                // BUT user clicked "Done". If it was "Done", we treat as toggle OFF (Neutral).
-                // Logic passed from UI: active class check is visual. 
-                // We simply check: did we just remove it from habits? If yes, we stop (neutral).
-                // Check original state from globalData to know if we are toggling off
                 const wasDone = (dailyLogs[dateStr]?.habits || []).includes(habitId);
-                
                 if (!wasDone) {
                     currentHabits.push(habitId);
                     scoreDelta += parseInt(value);
@@ -584,7 +577,6 @@
                 }
             }
 
-            // Save
             let newScore = globalData.score + scoreDelta;
             dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, purchases: entry.purchases || [] };
             
@@ -636,7 +628,6 @@
             showToast("Rimborsato!", "↩️");
         };
 
-        // --- EDIT MODAL LOGIC ---
         let editingItem = null; let editingType = null; 
 
         window.openEditModal = (id, type) => {
@@ -649,7 +640,6 @@
             document.getElementById('editNote').value = '';
             document.getElementById('editDate').value = new Date().toISOString().split('T')[0];
             
-            // Populate Tags
             const tagSel = document.getElementById('editTag');
             tagSel.innerHTML = '<option value="">Nessun Tag</option>';
             (globalData.tags || []).forEach(t => {
@@ -674,16 +664,34 @@
             document.getElementById('editModal').style.display = 'flex';
         }
 
+        // --- V9.9 FIXED HISTORY RENDER ---
         function renderEditHistory(item, type) {
             const container = document.getElementById('editHistoryLog');
             container.innerHTML = '';
             let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
             if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
+            
             let html = '';
             changes.forEach((change, index) => {
                 let dateFmt = change.date.split('-').reverse().join('/'); 
                 let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : '';
-                let text = index === 0 ? `Valore iniziale` : `Modifica`; // simplified for brevity
+                let text = '';
+
+                if (index === 0) {
+                     let val = type === 'habit' ? `+${change.reward} / -${change.penalty}` : `${change.cost}`;
+                    text = `Valore iniziale: <b>${val}</b>`;
+                } else {
+                    let prev = changes[index - 1];
+                    let diffText = '';
+                    if (type === 'habit') {
+                        if (prev.reward !== change.reward) diffText += `Reward: ${prev.reward}→<b>${change.reward}</b>. `;
+                        if (prev.penalty !== change.penalty) diffText += `Penalty: ${prev.penalty}→<b>${change.penalty}</b>. `;
+                    } else {
+                        if (prev.cost !== change.cost) diffText = `Costo: ${prev.cost}→<b>${change.cost}</b>`;
+                    }
+                    if (!diffText) diffText = "Solo Nota/Tag/Nome";
+                    text = diffText;
+                }
                 html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
             });
             container.innerHTML = html;
@@ -732,7 +740,6 @@
             showToast("Salvato!", "✏️");
         }
 
-        // --- TAG MANAGER V9.8 ---
         window.openTagManager = () => {
             const list = document.getElementById('tagsList');
             list.innerHTML = '';
@@ -764,18 +771,16 @@
             openTagManager();
         }
 
-        // --- ADD ITEM (V9.8 Single Day Logic) ---
         let addType = 'habit'; let recurMode = 'recur';
         window.setAddType = (t) => {
             addType = t;
             document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
             document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
             if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active');
-            else document.getElementById('modeSingle').classList.add('active'); // restore inner switch
+            else document.getElementById('modeSingle').classList.add('active'); 
             
             document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
             document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
-            // Refresh Tag Select
             const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
             (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
         }
@@ -805,7 +810,7 @@
                     
                     let newHabit = { id, name, reward:r, penalty:p, tagId: tag, type: recurMode };
                     if (recurMode === 'recur') newHabit.frequency = parseInt(freq);
-                    else newHabit.targetDate = targetDate; // For single day
+                    else newHabit.targetDate = targetDate; 
 
                     await updateDoc(ref, { habits: arrayUnion(newHabit) });
                 } else {
@@ -816,7 +821,6 @@
             } catch(e) { console.error(e); }
         };
 
-        // --- ARCHIVE LOGIC V9.8 ---
         window.archiveItem = (list, id) => {
             pendingArchiveId = { list, id };
             document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0];
@@ -829,7 +833,6 @@
             const { list, id } = pendingArchiveId;
             const ref = doc(db, "users", currentUser);
             
-            // Find item and set archivedAt
             const arr = globalData[list];
             const idx = arr.findIndex(i => i.id === id);
             if (idx > -1) {
@@ -840,9 +843,8 @@
             document.getElementById('archiveModal').style.display = 'none';
         }
 
-        window.toggleInputs = () => {}; // Legacy shim
+        window.toggleInputs = () => {}; 
 
-        // --- BACKUP & UTILS ---
         window.exportData = async () => {
             vibrate('light'); showToast("Preparazione backup...", "⏳");
             try {
@@ -913,23 +915,19 @@
                     const entry = userData.dailyLogs[date];
                     if(!entry) return 0;
                     
-                    // V9.8 Historical Calculation
                     let doneArr = [], failedArr = [], purchases = [];
-                    if (Array.isArray(entry)) { doneArr = entry; } // legacy
+                    if (Array.isArray(entry)) { doneArr = entry; } 
                     else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
                     
                     let net = 0;
-                    // Add Rewards
                     doneArr.forEach(hId => {
                         const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
                         if(hObj) net += window.getItemValueAtDate(hObj, 'reward', date);
                     });
-                    // Subtract Penalties
                     failedArr.forEach(hId => {
                         const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
                         if(hObj) net -= window.getItemValueAtDate(hObj, 'penalty', date);
                     });
-                    // Subtract Purchases
                     let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
                     return net - spent;
                 });
