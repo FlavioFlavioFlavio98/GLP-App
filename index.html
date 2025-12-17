@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V11.0 Pro Accountant</title>
+    <title>GLP V9.5 Backup</title>
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -15,48 +15,89 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 
     <style>
-        :root { --bg: #121212; --card: #1e1e1e; --text: #ffffff; --text-sec: #b0b0b0; --success: #4caf50; --danger: #ef5350; --theme-color: #ffca28; --theme-glow: rgba(255, 202, 40, 0.3); --toast-bg: #333; }
-        body { font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; padding-bottom: 120px; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; transition: background 0.3s ease; overflow-x: hidden; }
-        
-        /* UI COMPONENTS */
-        .identity-bar { background: var(--card); padding: 12px; border-radius: 20px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #333; margin-bottom: 20px; }
+        :root {
+            --bg: #121212; --card: #1e1e1e; --text: #ffffff; --text-sec: #b0b0b0;
+            --success: #4caf50; --danger: #ef5350;
+            --theme-color: #ffca28; --theme-glow: rgba(255, 202, 40, 0.3);
+            --toast-bg: #333;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; 
+            background: var(--bg); color: var(--text); 
+            margin: 0; padding: 20px; padding-bottom: 120px; 
+            -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+            transition: background 0.3s ease; overflow-x: hidden; 
+        }
+
+        /* HEADER */
+        .identity-bar {
+            background: var(--card); padding: 12px; border-radius: 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            border: 1px solid #333; margin-bottom: 20px;
+        }
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--theme-color); color: #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         .username { font-weight: bold; color: var(--theme-color); }
         .settings-btn { background: transparent; border: none; color: #666; cursor: pointer; padding: 5px; }
+
         .offline-badge { display: none; position: absolute; top: -5px; right: -5px; background: var(--danger); color: white; font-size: 0.6em; padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 2px solid var(--bg); }
         body.offline .offline-badge { display: block; }
 
+        /* DASHBOARD */
         .dashboard-top { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
         .progress-container { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
         .progress-ring__circle { transition: stroke-dashoffset 0.5s ease-in-out; transform: rotate(-90deg); transform-origin: 50% 50%; }
         .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: bold; font-size: 1.1em; color: var(--theme-color); }
+        
         .scoreboard-mini { flex: 1; display: flex; flex-direction: column; gap: 8px; }
         .score-row { background: var(--card); padding: 10px 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; cursor: pointer; transition: 0.2s; }
         .score-row.active { border-color: var(--theme-color); background: linear-gradient(90deg, var(--card), #2a2a2a); }
-        
+        .score-row span { font-size: 0.9em; color: #888; } .score-row strong { font-size: 1.2em; color: var(--text); }
+
         .chart-box { background: var(--card); padding: 10px; border-radius: 16px; height: 220px; margin-bottom: 20px; }
         .date-nav { display: flex; align-items: center; justify-content: space-between; background: #252525; padding: 10px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #333; }
         .date-btn { background: transparent; border: none; color: var(--text); font-size: 1.5em; padding: 0 15px; cursor: pointer; }
         .current-date { font-weight: bold; font-size: 1.1em; color: var(--theme-color); text-transform: uppercase; letter-spacing: 1px;}
 
+        /* ITEMS LIST & NEW ICONS */
         h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px;}
         .item { background: var(--card); padding: 15px; margin-bottom: 10px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #333; transition: 0.2s; position: relative; }
-        .item.done { border-left-color: var(--theme-color); background: #1a1a1a; opacity: 0.7; } .item.done h3 { text-decoration: line-through; color: #666; }
+        .item.done { border-left-color: var(--theme-color); background: #1a1a1a; opacity: 0.7; } 
+        .item.done h3 { text-decoration: line-through; color: #666; }
         .vals { font-size: 0.8em; color: #888; margin-top: 4px; } .plus { color: var(--success); } .minus { color: var(--danger); }
-
-        .actions-group { display: flex; gap: 10px; align-items: center; }
+        
+        /* NUOVO STILE CHECKBOX & DELETE */
+        .actions-group { display: flex; gap: 15px; align-items: center; }
+        
+        /* Checkbox Nascosto */
         .checkbox-wrapper { position: relative; display: block; width: 28px; height: 28px; }
         .checkbox-wrapper input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
-        .checkmark { position: absolute; top: 0; left: 0; height: 28px; width: 28px; background-color: #2a2a2a; border: 2px solid #444; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer; }
-        .checkbox-wrapper input:checked ~ .checkmark { background-color: var(--theme-color); border-color: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-glow); }
+        
+        /* Stile del Quadrato */
+        .checkmark {
+            position: absolute; top: 0; left: 0; height: 28px; width: 28px;
+            background-color: #2a2a2a; border: 2px solid #444; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; transition: 0.2s; cursor: pointer;
+        }
+        
+        /* Quando selezionato */
+        .checkbox-wrapper input:checked ~ .checkmark {
+            background-color: var(--theme-color); border-color: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-glow);
+        }
+        
+        /* Icona spunta */
         .checkmark::after { content: 'check'; font-family: 'Material Icons Round'; font-size: 20px; display: none; font-weight: bold; }
         .checkbox-wrapper input:checked ~ .checkmark::after { display: block; }
+        
+        /* Tasto Elimina Minimal */
+        .btn-delete-minimal {
+            background: transparent; border: none; color: #666; cursor: pointer;
+            padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s;
+        }
+        .btn-delete-minimal:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
 
-        .btn-icon { background: transparent; border: none; color: #666; cursor: pointer; padding: 5px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s; }
-        .btn-icon:hover { background: rgba(255,255,255,0.1); color: #fff; }
-        .btn-icon.delete:hover { background: rgba(239, 83, 80, 0.2); color: var(--danger); }
-
+        /* ACCORDION */
         .accordion { background: #252525; color: #888; cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 0.9em; border-radius: 12px; display: flex; justify-content: space-between; margin-top: 10px; box-sizing: border-box;}
         .panel { padding: 0 5px; display: none; overflow: hidden; margin-top: 10px; }
         .panel.show { display: block; }
@@ -64,19 +105,15 @@
 
         /* MODALS */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
-        .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; max-height: 80vh; overflow-y: auto; }
+        .modal-box { background: var(--card); padding: 25px; width: 85%; max-width: 400px; border-radius: 20px; border: 1px solid #333; }
         input, select.full { width: 100%; padding: 12px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 8px; margin: 10px 0; outline: none; box-sizing: border-box;}
         
         .btn-main { width: 100%; background: var(--theme-color); color: #000; padding: 12px; border-radius: 10px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer;}
         .btn-sec { width: 100%; background: transparent; color: #888; padding: 10px; border: none; margin-top: 5px; cursor: pointer;}
         .btn-danger { width: 100%; background: #2a1a1a; color: var(--danger); border: 1px solid var(--danger); padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold; cursor: pointer;}
+        
+        /* Tasti Backup */
         .btn-backup { width: 100%; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;}
-
-        /* HISTORY LOG STYLE */
-        .history-log { background: #111; border: 1px solid #333; border-radius: 8px; padding: 10px; margin-top: 15px; max-height: 150px; overflow-y: auto; font-size: 0.8em; color: #888; }
-        .history-entry { padding: 5px 0; border-bottom: 1px solid #222; }
-        .history-entry:last-child { border: none; }
-        .history-date { color: var(--theme-color); font-weight: bold; margin-right: 5px; }
 
         #toast { visibility: hidden; min-width: 250px; background-color: var(--toast-bg); color: #fff; text-align: center; border-radius: 50px; padding: 12px 20px; position: fixed; z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-weight: 500; font-size: 0.9em; border: 1px solid #444; display: flex; align-items: center; justify-content: center; gap: 10px; }
         #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; bottom: 100px; }
@@ -88,7 +125,7 @@
     </style>
 </head>
 <body>
-    <div class="version-tag">GLP V11.0 Pro</div>
+    <div class="version-tag">GLP V9.5 Backup</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -114,11 +151,13 @@
     <div id="mainContent">
         <h2>ABITUDINI DEL GIORNO</h2>
         <div id="habitList"></div>
+        
         <button class="accordion" onclick="toggleAccordion()"><span>📅 In Programma</span><span class="material-icons-round">expand_more</span></button>
         <div class="panel" id="upcomingList"><div style="text-align:center; color:#555; padding:10px;">Niente in programma</div></div>
 
         <h2>ACQUISTI DEL GIORNO</h2>
-        <div id="purchasedList"></div>
+        <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
+
         <h2>NEGOZIO PREMI</h2>
         <div id="shopList"></div>
     </div>
@@ -135,7 +174,7 @@
             <input type="text" id="newName" placeholder="Nome">
             <div id="habitInputs">
                 <select id="newFrequency" class="full">
-                    <option value="1">Ogni Giorno</option>
+                    <option value="1">Ogni Giorno (Classic)</option>
                     <option value="3">Ogni 3 Giorni</option>
                     <option value="7">Settimanale</option>
                     <option value="30">Mensile</option>
@@ -149,49 +188,20 @@
         </div>
     </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-box">
-            <h3 style="color:var(--theme-color)">Modifica Elemento</h3>
-            <input type="hidden" id="editId">
-            <input type="hidden" id="editType"> <label style="color:#888; font-size:0.8em">Nome</label>
-            <input type="text" id="editName">
-            
-            <div id="editHabitFields">
-                <label style="color:#888; font-size:0.8em">Frequenza (Giorni)</label>
-                <select id="editFrequency" class="full">
-                    <option value="1">Ogni Giorno</option>
-                    <option value="3">Ogni 3 Giorni</option>
-                    <option value="7">Settimanale</option>
-                    <option value="30">Mensile</option>
-                </select>
-                <label style="color:#888; font-size:0.8em">Ricompensa (+)</label>
-                <input type="number" id="editReward">
-                <label style="color:#888; font-size:0.8em">Penalità (-)</label>
-                <input type="number" id="editPenalty">
-            </div>
-            
-            <div id="editRewardFields" style="display:none">
-                <label style="color:#888; font-size:0.8em">Costo</label>
-                <input type="number" id="editCost">
-            </div>
-
-            <div style="margin-top:15px;">
-                <label style="color:#888; font-size:0.8em">Registro Modifiche</label>
-                <div id="editHistoryLog" class="history-log"></div>
-            </div>
-
-            <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
-            <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
-        </div>
-    </div>
-
     <div id="settingsModal" class="modal">
         <div class="modal-box" style="text-align:center">
             <h3>Impostazioni</h3>
             <hr style="border:1px solid #333; margin:20px 0;">
-            <button class="btn-backup" onclick="exportData()"><span class="material-icons-round">download</span> Esporta Backup (JSON)</button>
-            <button class="btn-backup" onclick="document.getElementById('importFile').click()"><span class="material-icons-round">upload</span> Ripristina Backup (JSON)</button>
+            
+            <button class="btn-backup" onclick="exportData()">
+                <span class="material-icons-round">download</span> Esporta Backup (JSON)
+            </button>
+            
+            <button class="btn-backup" onclick="document.getElementById('importFile').click()">
+                <span class="material-icons-round">upload</span> Ripristina Backup (JSON)
+            </button>
             <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this.files)">
+
             <hr style="border:1px solid #333; margin:20px 0;">
             <button class="btn-danger" onclick="hardReset()">☢️ RESET APP</button>
             <button class="btn-sec" onclick="document.getElementById('settingsModal').style.display='none'">Chiudi</button>
@@ -217,6 +227,7 @@
 
         let currentUser = localStorage.getItem('glp_user') || 'flavio';
         let globalData = null;
+        let allUsersData = { flavio: null, simona: null };
         let viewDate = new Date(); 
         let chartInstance = null;
 
@@ -246,18 +257,24 @@
             try {
                 const snap = await getDoc(ref);
                 if (!snap.exists()) {
-                    await setDoc(ref, { score: 0, habits: [], rewards: [], history: [], dailyLogs: {} });
+                    await setDoc(ref, {
+                        score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, lastLogin: new Date().toDateString()
+                    });
                 }
             } catch (e) { console.error("Err init:", e); }
         }
 
         function startListeners() {
-            onSnapshot(doc(db, "users", currentUser), (d) => {
-                if(d.exists()) {
-                    globalData = d.data();
-                    renderView();
-                    updateMultiChart();
-                }
+            ['flavio', 'simona'].forEach(u => {
+                onSnapshot(doc(db, "users", u), (d) => {
+                    if(d.exists()) {
+                        const userData = d.data();
+                        allUsersData[u] = userData;
+                        document.getElementById(`score-${u}`).innerText = userData.score;
+                        if(u === currentUser) { globalData = userData; renderView(); }
+                        updateMultiChart();
+                    }
+                });
             });
         }
 
@@ -268,13 +285,18 @@
             if(!globalData) return;
             const todayStr = getDateString(new Date());
             const viewStr = getDateString(viewDate);
-            document.getElementById('dateDisplay').innerText = (viewStr === todayStr) ? "OGGI" : ((viewStr === getDateString(new Date(Date.now() - 86400000))) ? "IERI" : `${viewDate.getDate()}/${viewDate.getMonth()+1}`);
+            const displayEl = document.getElementById('dateDisplay');
+            
+            let isToday = (viewStr === todayStr);
+            if (isToday) displayEl.innerText = "OGGI";
+            else if (viewStr === getDateString(new Date(Date.now() - 86400000))) displayEl.innerText = "IERI";
+            else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
 
             const dailyLogs = globalData.dailyLogs || {};
             const entry = dailyLogs[viewStr];
             let todaysHabits = [], todaysPurchases = [];
 
-            if (Array.isArray(entry)) { todaysHabits = entry; } // Legacy support
+            if (Array.isArray(entry)) { todaysHabits = entry; }
             else if (entry) { todaysHabits = entry.habits || []; todaysPurchases = entry.purchases || []; }
 
             const hList = document.getElementById('habitList'); hList.innerHTML = '';
@@ -285,50 +307,56 @@
 
             (globalData.habits || []).forEach((h) => {
                 const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
-                // Controllo se l'abitudine è presente nei log (gestione mista stringa/oggetto)
-                const logEntry = todaysHabits.find(item => (typeof item === 'string' ? item : item.id) === stableId);
-                const isDone = !!logEntry;
+                const isDone = todaysHabits.includes(stableId);
                 const freq = h.frequency || 1; 
                 
-                // Calcolo visibilità
-                let shouldShow = true; let daysLeft = 0;
+                let shouldShow = true;
+                let daysLeft = 0;
+
                 if (freq > 1) {
                     if (isDone) { shouldShow = true; } else {
                         if (h.lastDone) {
-                            const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (1000 * 60 * 60 * 24));
-                            if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; }
+                            const lastDate = new Date(h.lastDone);
+                            const viewD = new Date(viewStr);
+                            const diffTime = viewD - lastDate;
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; } else if (diffDays < 0) { shouldShow = true; }
                         }
                     }
                 }
 
                 if (shouldShow) {
                     visibleCount++;
-                    // Se fatta, usa il valore dello snapshot, altrimenti usa il valore attuale
-                    const val = isDone ? (typeof logEntry === 'object' ? logEntry.val : h.reward) : h.reward;
-                    dailyTotalPot += parseInt(h.reward); // Potenziale basato su valore attuale
-                    if(isDone) dailyEarned += parseInt(val);
+                    dailyTotalPot += parseInt(h.reward);
+                    if(isDone) dailyEarned += parseInt(h.reward);
 
                     const cssClass = isDone ? 'item done' : 'item';
                     const freqLabel = freq > 1 ? `<span style="font-size:0.7em; background:#333; padding:2px 6px; border-radius:4px; margin-left:5px">Ogni ${freq}gg</span>` : '';
 
+                    // NUOVA GRAFICA CHECKBOX E DELETE
                     hList.innerHTML += `
                         <div class="${cssClass}">
                             <div>
                                 <div style="display:flex; align-items:center"><h3>${h.name}</h3>${freqLabel}</div>
-                                <div class="vals"><span class="plus">+${val}</span> / <span class="minus">-${h.penalty}</span></div>
+                                <div class="vals"><span class="plus">+${h.reward}</span> / <span class="minus">-${h.penalty}</span></div>
                             </div>
                             <div class="actions-group">
-                                <button class="btn-icon" onclick="openEditModal('habits', '${stableId}')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                                 <label class="checkbox-wrapper">
-                                    <input type="checkbox" ${isDone ? 'checked' : ''} onclick="toggleHabit('${stableId}', ${h.reward})">
+                                    <input type="checkbox" ${isDone ? 'checked disabled' : ''} onclick="toggleHabit('${stableId}', ${h.reward})">
                                     <span class="checkmark"></span>
                                 </label>
-                                <button class="btn-icon delete" onclick="deleteItem('habits', '${stableId}')"><span class="material-icons-round" style="font-size:18px">close</span></button>
+                                <button class="btn-delete-minimal" onclick="deleteItem('habits', '${stableId}')">
+                                    <span class="material-icons-round" style="font-size:18px">close</span>
+                                </button>
                             </div>
                         </div>`;
                 } else {
                     upcomingCount++;
-                    upcomingList.innerHTML += `<div class="item" style="opacity:0.6; border-left:4px solid #555"><div><h3>${h.name}</h3><div class="vals" style="color:#888">Scade tra ${daysLeft} giorni</div></div><div class="future-tag">Ogni ${freq}gg</div></div>`;
+                    upcomingList.innerHTML += `
+                        <div class="item" style="opacity:0.6; border-left:4px solid #555">
+                            <div><h3>${h.name}</h3><div class="vals" style="color:#888">Scade tra ${daysLeft} giorni</div></div>
+                            <div class="future-tag">Ogni ${freq}gg</div>
+                        </div>`;
                 }
             });
             
@@ -341,154 +369,61 @@
             if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
             else {
                 todaysPurchases.forEach((p, idx) => {
-                    pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon delete" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
+                    pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-delete-minimal" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
                 });
             }
 
             const sList = document.getElementById('shopList'); sList.innerHTML = '';
             (globalData.rewards || []).forEach((r) => {
-                const stableId = r.id || r.name.replace(/[^a-zA-Z0-9]/g, '');
-                sList.innerHTML += `
-                <div class="item">
-                    <div><h3>${r.name}</h3><div class="vals minus">Costo: ${r.cost}</div></div>
-                    <div style="display:flex; gap:10px; align-items:center">
-                         <button class="btn-icon" onclick="openEditModal('rewards', '${stableId}')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                         <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${r.cost})">Compra</button>
-                         <button class="btn-icon delete" onclick="deleteItem('rewards', '${stableId}')"><span class="material-icons-round" style="font-size:18px">close</span></button>
-                    </div>
-                </div>`;
+                sList.innerHTML += `<div class="item"><div><h3>${r.name}</h3><div class="vals minus">Costo: ${r.cost}</div></div><button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${r.cost})">Compra</button></div>`;
             });
         }
 
-        window.toggleHabit = async (habitId, currentRewardValue) => {
+        window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
+
+        function updateProgressCircle(earned, total) {
+            const circle = document.getElementById('prog-circle');
+            const text = document.getElementById('prog-text');
+            const radius = circle.r.baseVal.value;
+            const circumference = radius * 2 * Math.PI; 
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            let percent = total === 0 ? 0 : (earned / total) * 100;
+            if(percent > 100) percent = 100;
+            const offset = circumference - (percent / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+            text.innerText = Math.round(percent) + "%";
+        }
+
+        window.toggleHabit = async (habitId, reward) => {
             const dateStr = getDateString(viewDate);
             const ref = doc(db, "users", currentUser);
             let dailyLogs = globalData.dailyLogs || {};
             let entry = dailyLogs[dateStr];
-            
-            // Normalize entry structure
             let currentHabits = (Array.isArray(entry) ? entry : entry?.habits) || [];
             let currentPurchases = (Array.isArray(entry) ? [] : entry?.purchases) || [];
-            
             let newScore = globalData.score;
             let actionType = '';
-            
-            // Find if already done (handles string vs object)
-            const existingIndex = currentHabits.findIndex(item => (typeof item === 'string' ? item : item.id) === habitId);
+            let habitsArr = globalData.habits;
+            let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
 
-            if(existingIndex > -1) {
-                // UNCHECK (Remove)
-                const item = currentHabits[existingIndex];
-                // Se è un oggetto snapshot usa il suo valore, altrimenti usa il valore attuale
-                const valToRemove = (typeof item === 'object') ? parseInt(item.val) : parseInt(currentRewardValue);
-                
-                newScore -= valToRemove;
-                currentHabits.splice(existingIndex, 1);
+            if(currentHabits.includes(habitId)) {
+                currentHabits = currentHabits.filter(id => id !== habitId);
+                newScore -= parseInt(reward);
                 actionType = 'removed';
             } else {
-                // CHECK (Add with Snapshot)
-                // Salviamo un oggetto con ID e VALORE ATTUALE
-                currentHabits.push({ id: habitId, val: parseInt(currentRewardValue) });
-                newScore += parseInt(currentRewardValue);
+                currentHabits.push(habitId);
+                newScore += parseInt(reward);
                 actionType = 'added';
-                
-                // Update lastDone date in habit definition
-                let habitsArr = globalData.habits;
-                let hIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
-                if (hIndex >= 0) habitsArr[hIndex].lastDone = dateStr;
-                
+                if (habitIndex >= 0) habitsArr[habitIndex].lastDone = dateStr; 
                 if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
-                await updateDoc(ref, { habits: habitsArr }); // Save lastDone update
             }
-
             dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
-            await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+            await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs, habits: habitsArr });
+            logHistory(currentUser, newScore);
             vibrate('light');
             if(actionType==='added') showToast("Ottimo lavoro!", "✅");
         };
 
-        // --- EDIT SYSTEM ---
-        window.openEditModal = (type, id) => {
-            const item = globalData[type].find(i => (i.id || i.name.replace(/[^a-zA-Z0-9]/g, '')) === id);
-            if (!item) return;
-
-            document.getElementById('editId').value = id;
-            document.getElementById('editType').value = type;
-            document.getElementById('editName').value = item.name;
-            
-            const historyLog = document.getElementById('editHistoryLog');
-            historyLog.innerHTML = '';
-            
-            if (item.history) {
-                item.history.forEach(log => {
-                    historyLog.innerHTML += `<div class="history-entry"><span class="history-date">${log.date}:</span> ${log.change}</div>`;
-                });
-            } else {
-                historyLog.innerHTML = '<div style="padding:10px; text-align:center">Nessuna modifica registrata</div>';
-            }
-
-            if (type === 'habits') {
-                document.getElementById('editHabitFields').style.display = 'block';
-                document.getElementById('editRewardFields').style.display = 'none';
-                document.getElementById('editFrequency').value = item.frequency || 1;
-                document.getElementById('editReward').value = item.reward;
-                document.getElementById('editPenalty').value = item.penalty;
-            } else {
-                document.getElementById('editHabitFields').style.display = 'none';
-                document.getElementById('editRewardFields').style.display = 'block';
-                document.getElementById('editCost').value = item.cost;
-            }
-            document.getElementById('editModal').style.display = 'flex';
-        }
-
-        window.saveEdit = async () => {
-            const id = document.getElementById('editId').value;
-            const type = document.getElementById('editType').value;
-            const ref = doc(db, "users", currentUser);
-            
-            let itemsArr = [...globalData[type]];
-            const idx = itemsArr.findIndex(i => (i.id || i.name.replace(/[^a-zA-Z0-9]/g, '')) === id);
-            if (idx === -1) return;
-
-            const oldItem = itemsArr[idx];
-            let newItem = { ...oldItem };
-            let changes = [];
-            const today = new Date().toLocaleDateString('it-IT');
-
-            // Check changes
-            const newName = document.getElementById('editName').value;
-            if (oldItem.name !== newName) { newItem.name = newName; changes.push(`Nome: ${oldItem.name} -> ${newName}`); }
-
-            if (type === 'habits') {
-                const newFreq = parseInt(document.getElementById('editFrequency').value);
-                const newRew = parseInt(document.getElementById('editReward').value);
-                const newPen = parseInt(document.getElementById('editPenalty').value);
-                
-                if (oldItem.frequency != newFreq) { newItem.frequency = newFreq; changes.push(`Freq: ${oldItem.frequency||1} -> ${newFreq}`); }
-                if (oldItem.reward != newRew) { newItem.reward = newRew; changes.push(`Reward: ${oldItem.reward} -> ${newRew}`); }
-                if (oldItem.penalty != newPen) { newItem.penalty = newPen; changes.push(`Penalty: ${oldItem.penalty} -> ${newPen}`); }
-            } else {
-                const newCost = parseInt(document.getElementById('editCost').value);
-                if (oldItem.cost != newCost) { newItem.cost = newCost; changes.push(`Costo: ${oldItem.cost} -> ${newCost}`); }
-            }
-
-            if (changes.length > 0) {
-                if (!newItem.history) newItem.history = [];
-                // Se è la prima volta, aggiungiamo il log di creazione (fittizio)
-                if (newItem.history.length === 0) newItem.history.push({ date: 'Inizio', change: 'Oggetto creato' });
-                
-                newItem.history.push({ date: today, change: changes.join(', ') });
-                
-                itemsArr[idx] = newItem;
-                await updateDoc(ref, { [type]: itemsArr });
-                showToast("Modifiche salvate", "💾");
-                document.getElementById('editModal').style.display = 'none';
-            } else {
-                document.getElementById('editModal').style.display = 'none';
-            }
-        }
-
-        // --- STANDARD FUNCTIONS ---
         window.buyReward = async (name, cost) => {
             if(globalData.score < cost) { vibrate('heavy'); showToast("Punti insufficienti!", "❌"); return; }
             if(!confirm(`Comprare ${name} per ${cost}?`)) return;
@@ -502,6 +437,7 @@
             let newScore = globalData.score - parseInt(cost);
             dailyLogs[dateStr] = { habits: currentHabits, purchases: currentPurchases };
             await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+            logHistory(currentUser, newScore);
             vibrate('heavy');
             confetti({ shapes: ['circle'], colors: ['#4caf50'] });
             showToast("Acquisto effettuato!", "🛍️");
@@ -516,10 +452,72 @@
             entry.purchases.splice(idx, 1);
             let newScore = globalData.score + parseInt(cost);
             await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+            logHistory(currentUser, newScore);
             vibrate('light');
             showToast("Rimborsato!", "↩️");
         };
 
+        // --- BACKUP FUNCTIONS (JSON) ---
+        window.exportData = async () => {
+            vibrate('light');
+            showToast("Preparazione backup...", "⏳");
+            try {
+                const usersCol = collection(db, 'users');
+                const userSnapshot = await getDocs(usersCol);
+                let backupData = {};
+                userSnapshot.forEach(doc => {
+                    backupData[doc.id] = doc.data();
+                });
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                const date = new Date().toISOString().slice(0,10);
+                downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`);
+                document.body.appendChild(downloadAnchorNode); 
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+                showToast("Backup scaricato!", "✅");
+            } catch (e) {
+                console.error("Export error:", e);
+                showToast("Errore durante l'export", "❌");
+                vibrate('heavy');
+            }
+        };
+
+        window.importData = (files) => {
+            if (files.length === 0) return;
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const backupData = JSON.parse(e.target.result);
+                    if (!confirm("ATTENZIONE: Questo sovrascriverà tutti i dati correnti con quelli del backup. Continuare?")) {
+                        document.getElementById('importFile').value = ''; 
+                        return;
+                    }
+                    showToast("Ripristino in corso...", "⏳");
+                    vibrate('heavy');
+                    for (const userId in backupData) {
+                         if (backupData.hasOwnProperty(userId)) {
+                             await setDoc(doc(db, "users", userId), backupData[userId]);
+                         }
+                    }
+                    showToast("Ripristino completato!", "✅");
+                    setTimeout(() => location.reload(), 1500);
+                } catch (err) {
+                    console.error("Import error:", err);
+                    showToast("File di backup non valido", "❌");
+                    vibrate('heavy');
+                }
+                document.getElementById('importFile').value = ''; 
+            };
+            reader.readAsText(file);
+        };
+
+        window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
+        window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
+        
         window.addItem = async () => {
             const type = document.getElementById('newType').value;
             let name = document.getElementById('newName').value;
@@ -527,21 +525,14 @@
             if(!name) { vibrate('heavy'); return; }
             const id = Date.now().toString(); 
             const ref = doc(db, "users", currentUser);
-            const today = new Date().toLocaleDateString('it-IT');
             try {
                 if(type === 'habit') {
                     const r = document.getElementById('newReward').value || 0;
                     const p = document.getElementById('newPenalty').value || 0;
-                    await updateDoc(ref, { habits: arrayUnion({
-                        id, name, reward:r, penalty:p, frequency: parseInt(freq),
-                        history: [{date: today, change: `Creato con Valore ${r}`}]
-                    }) });
+                    await updateDoc(ref, { habits: arrayUnion({id, name, reward:r, penalty:p, frequency: parseInt(freq)}) });
                 } else {
                     const c = document.getElementById('newCost').value || 0;
-                    await updateDoc(ref, { rewards: arrayUnion({
-                        id, name, cost:c,
-                        history: [{date: today, change: `Creato con Costo ${c}`}]
-                    }) });
+                    await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c}) });
                 }
                 document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
             } catch(e) { console.error(e); }
@@ -556,49 +547,28 @@
         };
 
         window.hardReset = async () => { const code = prompt("Scrivi RESET per cancellare tutto:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+
+        function applyTheme(user) {
+            const root = document.documentElement;
+            if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } 
+            else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; }
+            document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active');
+        }
+
         window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
         window.toggleInputs = () => { const t = document.getElementById('newType').value; document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none'; }
-        window.toggleAccordion = () => { document.getElementById('upcomingList').classList.toggle('show'); }
 
-        window.exportData = async () => {
-            vibrate('light'); showToast("Preparazione backup...", "⏳");
-            try {
-                const userSnapshot = await getDocs(collection(db, 'users'));
-                let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); });
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
-                const node = document.createElement('a'); node.href = dataStr; node.download = `GLP_Backup_${new Date().toISOString().slice(0,10)}.json`;
-                document.body.appendChild(node); node.click(); node.remove(); showToast("Backup scaricato!", "✅");
-            } catch (e) { console.error(e); showToast("Errore export", "❌"); }
-        };
-
-        window.importData = (files) => {
-            if (files.length === 0) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                if (!confirm("Sovrascrivere tutto il database?")) return;
-                try {
-                    const data = JSON.parse(e.target.result);
-                    for (const uid in data) await setDoc(doc(db, "users", uid), data[uid]);
-                    showToast("Ripristino completato!", "✅"); setTimeout(() => location.reload(), 1500);
-                } catch (err) { showToast("File non valido", "❌"); }
-            };
-            reader.readAsText(files[0]);
-        };
-
-        function updateProgressCircle(earned, total) {
-            const circle = document.getElementById('prog-circle');
-            const text = document.getElementById('prog-text');
-            const circumference = circle.r.baseVal.value * 2 * Math.PI; 
-            circle.style.strokeDasharray = `${circumference} ${circumference}`;
-            let percent = total === 0 ? 0 : (earned / total) * 100;
-            if(percent > 100) percent = 100;
-            circle.style.strokeDashoffset = circumference - (percent / 100) * circumference;
-            text.innerText = Math.round(percent) + "%";
+        async function logHistory(user, score) {
+            const ref = doc(db, "users", user);
+            const hist = globalData.history || [];
+            hist.push({date: new Date().toISOString(), score});
+            if(hist.length > 500) hist.shift();
+            await updateDoc(ref, { history: hist });
         }
 
         function updateMultiChart() {
             const ctx = document.getElementById('progressChart').getContext('2d');
-            const labels = [], dates = [];
+            const labels = []; const dates = [];
             for(let i=14; i>=0; i--) {
                 const d = new Date(); d.setDate(d.getDate() - i);
                 dates.push(d.toISOString().split('T')[0]);
@@ -610,55 +580,44 @@
                 return dates.map(date => {
                     const entry = userData.dailyLogs[date];
                     if(!entry) return 0;
-                    let habitsDone = (Array.isArray(entry) ? entry : entry.habits) || [];
-                    let purchases = (Array.isArray(entry) ? [] : entry.purchases) || [];
+                    let habitsDone = [], purchases = [];
+                    if (Array.isArray(entry)) { habitsDone = entry; }
+                    else { habitsDone = entry.habits || []; purchases = entry.purchases || []; }
                     let earned = 0;
-                    habitsDone.forEach(hItem => {
-                        // Supporto misto: se è stringa, cerca il valore attuale. Se è oggetto, usa snapshot.
-                        if (typeof hItem === 'object') {
-                            earned += parseInt(hItem.val);
-                        } else {
-                            const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hItem);
-                            if(hObj) earned += parseInt(hObj.reward);
-                        }
+                    habitsDone.forEach(hId => {
+                        const hObj = userData.habits.find(h => {
+                            const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+                            return stableId === hId;
+                        });
+                        if(hObj) earned += parseInt(hObj.reward);
                     });
                     let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
                     return earned - spent;
                 });
             };
 
-            const flavioPoints = getDailyNetPoints(globalData); // Simplification for current view context, or fetch all users properly if needed
-            
-            // Per il grafico multi-utente serve recuperare anche l'altro utente. 
-            // In questa versione semplificata, carichiamo i dati dell'altro utente separatamente o usiamo quelli in cache
-            // Nota: per semplicità qui mostro i dati correnti caricati in allUsersData se disponibili
-             onSnapshot(doc(db, "users", 'simona'), (d) => { if(d.exists()) allUsersData['simona'] = d.data(); });
-             onSnapshot(doc(db, "users", 'flavio'), (d) => { if(d.exists()) allUsersData['flavio'] = d.data(); });
+            const flavioPoints = getDailyNetPoints(allUsersData.flavio);
+            const simonaPoints = getDailyNetPoints(allUsersData.simona);
 
-             // Piccolo ritardo per assicurare caricamento dati chart
-             setTimeout(() => {
-                 if(chartInstance) chartInstance.destroy();
-                 chartInstance = new Chart(ctx, {
-                    type: 'line', 
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            { label: 'Flavio', data: getDailyNetPoints(allUsersData['flavio']), borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 },
-                            { label: 'Simona', data: getDailyNetPoints(allUsersData['simona']), borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }
-                        ]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } }
-                });
-             }, 500);
-        }
-        
-        window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
-        window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
-        function applyTheme(user) {
-            const root = document.documentElement;
-            if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } 
-            else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; }
-            document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'line', 
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 },
+                        { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: true, labels: { color: '#888' } } },
+                    scales: { 
+                        y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, 
+                        x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } 
+                    }
+                }
+            });
         }
     </script>
 </body>
