@@ -24,12 +24,15 @@ let pendingArchiveId = null;
 let editingTagIndex = null;
 let currentNoteUnsubscribe = null;
 let noteDebounceTimer = null;
+let editingItem = null; 
+let editingType = null;
+let addType = 'habit'; 
+let recurMode = 'recur';
 
 // --- HELPERS ---
 window.getItemValueAtDate = (item, field, dateStr) => {
     // Helper to extract value (reward, penalty, isMulti, etc) at a specific date
     if (!item.changes || item.changes.length === 0) {
-        // Fallback for non-numeric fields if they exist on root
         if(field === 'isMulti') return item.isMulti || false;
         if(field === 'description') return item.description || "";
         return parseInt(item[field] || 0);
@@ -122,9 +125,8 @@ window.toggleMultiInput = (prefix) => {
     const rewardLbl = document.getElementById(prefix === 'new' ? 'lblNewReward' : 'lblEditReward');
     rewardLbl.innerText = isMulti ? 'Reward (Max)' : 'Reward';
     
-    // Show/Hide description input
     const descInput = document.getElementById(`${prefix}Desc`);
-    if(descInput) descInput.style.display = 'block'; // Always show desc now as requested
+    if(descInput) descInput.style.display = 'block'; 
 }
 
 // RENDER
@@ -145,13 +147,12 @@ function renderView() {
     const dailyLogs = globalData.dailyLogs || {};
     const entry = dailyLogs[viewStr] || {};
     
-    // Safety check for entry structure
     let doneHabits = [];
     if (Array.isArray(entry)) doneHabits = entry;
     else doneHabits = entry.habits || [];
 
     const failedHabits = entry.failedHabits || [];
-    const habitLevels = entry.habitLevels || {}; // New V12: Track Min/Max levels
+    const habitLevels = entry.habitLevels || {}; 
     const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
     const hList = document.getElementById('habitList'); hList.innerHTML = '';
@@ -173,8 +174,7 @@ function renderView() {
         const isFailed = failedHabits.includes(stableId);
         const freq = h.frequency || 1; 
         
-        // V12: Fetch historical values
-        const currentReward = window.getItemValueAtDate(h, 'reward', viewStr); // This is Max
+        const currentReward = window.getItemValueAtDate(h, 'reward', viewStr); // Max
         const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
         const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
         const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
@@ -193,11 +193,10 @@ function renderView() {
 
         if (shouldShow) {
             visibleCount++;
-            dailyTotalPot += currentReward; // Potential is always max
+            dailyTotalPot += currentReward; 
             
             if(isDone) {
-                // Check level: if multi and level is min, use min reward
-                let level = habitLevels[stableId] || 'max'; // Default to max for old data
+                let level = habitLevels[stableId] || 'max'; 
                 if (isMulti && level === 'min') dailyEarned += currentRewardMin;
                 else dailyEarned += currentReward;
             }
@@ -213,7 +212,6 @@ function renderView() {
                 if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
             }
 
-            // V12 Button Logic
             let btnClass = '';
             let btnIcon = 'check';
             let btnText = '';
@@ -221,12 +219,12 @@ function renderView() {
             if (isDone) {
                 let level = habitLevels[stableId] || 'max';
                 if (isMulti && level === 'min') {
-                    btnClass = 'min'; // CSS class .btn-status.min
+                    btnClass = 'min'; 
                     btnText = 'MIN';
-                    btnIcon = ''; // Hide icon, show text
+                    btnIcon = ''; 
                 } else {
-                    btnClass = 'max active'; // CSS class .btn-status.max
-                    btnText = isMulti ? 'MAX' : ''; // Only show MAX text if multi, else icon
+                    btnClass = 'max active'; 
+                    btnText = isMulti ? 'MAX' : ''; 
                     if (isMulti) btnIcon = ''; 
                 }
             }
@@ -319,7 +317,6 @@ function updateProgressCircle(earned, total) {
     text.innerText = Math.round(percent) + "%";
 }
 
-// --- V12 STATUS LOGIC (CYCLE) ---
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
@@ -335,7 +332,6 @@ window.setHabitStatus = async (habitId, action, value) => {
     let currentFailed = entry.failedHabits;
     let currentLevels = entry.habitLevels;
     
-    // Find Habit Definition for this date
     let habitsArr = globalData.habits;
     let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
     const habitObj = habitsArr[habitIndex];
@@ -345,7 +341,6 @@ window.setHabitStatus = async (habitId, action, value) => {
     const rewardMin = window.getItemValueAtDate(habitObj, 'rewardMin', dateStr);
     const penalty = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
 
-    // 1. Revert Current State Score
     if (currentHabits.includes(habitId)) {
         let level = currentLevels[habitId] || 'max';
         if (isMulti && level === 'min') globalData.score -= rewardMin;
@@ -359,26 +354,17 @@ window.setHabitStatus = async (habitId, action, value) => {
         currentFailed = currentFailed.filter(id => id !== habitId);
     }
 
-    // 2. Determine New State
     let actionType = 'neutral';
     
     if (action === 'failed') {
-        // Force Fail
         currentFailed.push(habitId);
         globalData.score -= penalty;
         actionType = 'failed';
     } else if (action === 'next') {
-        // Cycle Logic
-        // Was nothing? -> Min (if multi) OR Max (if single)
-        // Was Min? -> Max
-        // Was Max? -> Nothing
-        
-        // We already cleared previous state above, so we just need to know what it WAS to decide next
         const wasDone = (dailyLogs[dateStr]?.habits || []).includes(habitId);
         const wasLevel = (dailyLogs[dateStr]?.habitLevels || {})[habitId] || 'max';
 
         if (!wasDone) {
-            // Nothing -> Min (or Max if not multi)
             currentHabits.push(habitId);
             if (isMulti) {
                 currentLevels[habitId] = 'min';
@@ -389,15 +375,11 @@ window.setHabitStatus = async (habitId, action, value) => {
                 actionType = 'done';
             }
         } else {
-            // Was Done
             if (isMulti && wasLevel === 'min') {
-                // Min -> Max
                 currentHabits.push(habitId);
                 currentLevels[habitId] = 'max';
                 globalData.score += rewardMax;
                 actionType = 'done';
-            } else {
-                // Max -> Nothing (Already handled by Revert step)
             }
         }
         
@@ -421,7 +403,6 @@ window.setHabitStatus = async (habitId, action, value) => {
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
 };
 
-// --- REST OF APP (Buy, Refund, Notes, Streaks, Analytics) ---
 window.buyReward = async (name, cost) => {
     if(globalData.score < cost) { vibrate('heavy'); showToast("Punti insufficienti!", "❌"); return; }
     if(!confirm(`Comprare ${name} per ${cost}?`)) return;
@@ -433,7 +414,6 @@ window.buyReward = async (name, cost) => {
     currentPurchases.push({ name, cost, time: Date.now() });
     let newScore = globalData.score - parseInt(cost);
     
-    // Preserve other fields
     let newEntry = { 
         habits: entry.habits || [], 
         failedHabits: entry.failedHabits || [], 
@@ -461,7 +441,6 @@ window.refundPurchase = async (idx, cost) => {
     vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
-// --- V12 MODALS (EDIT/ADD) ---
 window.openEditModal = (id, type) => {
     editingType = type;
     const list = type === 'habit' ? globalData.habits : globalData.rewards;
@@ -484,10 +463,9 @@ window.openEditModal = (id, type) => {
         document.getElementById('editHabitFields').style.display = 'block';
         document.getElementById('editRewardFields').style.display = 'none';
         
-        // V12: Load current IsMulti status
         const isMulti = editingItem.isMulti || false;
         document.getElementById('editIsMulti').checked = isMulti;
-        toggleMultiInput('edit'); // Trigger UI update
+        toggleMultiInput('edit'); 
         
         document.getElementById('editVal1').value = editingItem.reward;
         document.getElementById('editVal2').value = editingItem.penalty;
@@ -497,7 +475,7 @@ window.openEditModal = (id, type) => {
         document.getElementById('editHabitFields').style.display = 'none';
         document.getElementById('editRewardFields').style.display = 'block';
         document.getElementById('editCost').value = editingItem.cost;
-        document.getElementById('editDesc').value = ""; // Rewards don't use desc yet
+        document.getElementById('editDesc').value = "";
     }
 
     renderEditHistory(editingItem, type);
@@ -543,7 +521,6 @@ window.saveEdit = async () => {
     editingItem.name = newName;
     editingItem.tagId = newTag;
     
-    // Base change entry
     let newChangeEntry = { date: editDate };
     if (editNote.trim() !== "") newChangeEntry.note = editNote;
 
@@ -553,14 +530,12 @@ window.saveEdit = async () => {
         const rewardMin = parseInt(document.getElementById('editRewardMin').value) || 0;
         const isMulti = document.getElementById('editIsMulti').checked;
 
-        // V12: Save all fields to change history to preserve time travel
         newChangeEntry.reward = val1; 
         newChangeEntry.penalty = val2;
         newChangeEntry.isMulti = isMulti;
         newChangeEntry.rewardMin = rewardMin;
         newChangeEntry.description = newDesc;
         
-        // Update root item for future reference
         editingItem.reward = val1; 
         editingItem.penalty = val2;
         editingItem.isMulti = isMulti;
@@ -573,7 +548,6 @@ window.saveEdit = async () => {
     }
 
     if (!editingItem.changes) {
-        // Init history if missing
         let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
         if (editingType === 'habit') { 
             initialEntry.reward = editingItem.reward; 
@@ -587,7 +561,6 @@ window.saveEdit = async () => {
         editingItem.changes = [initialEntry];
     }
     
-    // Remove existing change for same date if exists
     editingItem.changes = editingItem.changes.filter(c => c.date !== editDate);
     editingItem.changes.push(newChangeEntry);
     editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
@@ -599,6 +572,28 @@ window.saveEdit = async () => {
     document.getElementById('editModal').style.display = 'none';
     editingItem = null;
     renderView(); showToast("Salvato!", "✏️");
+}
+
+window.setAddType = (t) => {
+    addType = t;
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
+    if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active');
+    else document.getElementById('modeSingle').classList.add('active'); 
+    
+    document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
+    document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
+    const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
+    (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+}
+window.setRecurMode = (m) => {
+    recurMode = m;
+    document.getElementById('modeRecur').classList.remove('active');
+    document.getElementById('modeSingle').classList.remove('active');
+    document.getElementById(m==='recur'?'modeRecur':'modeSingle').classList.add('active');
+    document.getElementById('recurInput').style.display = m==='recur'?'block':'none';
+    document.getElementById('dateInput').style.display = m==='single'?'block':'none';
+    if(m==='single') document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
 }
 
 window.addItem = async () => {
@@ -634,7 +629,6 @@ window.addItem = async () => {
     } catch(e) { console.error(e); }
 };
 
-// --- REMAINDER OF HELPERS (Notes, Stats, etc) ---
 function setupNoteListener(dateStr) {
     if (currentNoteUnsubscribe) { currentNoteUnsubscribe(); currentNoteUnsubscribe = null; }
     const textArea = document.getElementById('dailyNoteArea');
@@ -680,13 +674,10 @@ function calculateStreak(habitId) {
     return streak;
 }
 
-// ... (Functions like updateDetailedChart, openStats, Tag Manager, Archive remain the same as V11, omitted for brevity but part of full file) ...
-// Ensure you copy the V11 Analytics/Tag/Stats logic here if overriding file completely.
-// For the sake of this answer, I assume the rest of the functions from V11 are present.
-
-// V11+ Chart Logic Patch: Ensure charts use `getItemValueAtDate` and check levels!
 window.updateDetailedChart = (days) => {
-    // ... (UI Logic) ...
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(`filter${days}`).classList.add('active');
+
     const ctx = document.getElementById('detailedChart').getContext('2d');
     const labels = []; const dates = [];
     for(let i=days-1; i>=0; i--) {
@@ -699,7 +690,6 @@ window.updateDetailedChart = (days) => {
         if(!userData || !userData.dailyLogs) return new Array(days).fill(0);
         return dates.map(date => {
             const entry = userData.dailyLogs[date] || {};
-            // Safe access
             let doneArr = Array.isArray(entry) ? entry : (entry.habits || []);
             let failedArr = entry.failedHabits || [];
             let levels = entry.habitLevels || {};
@@ -709,10 +699,9 @@ window.updateDetailedChart = (days) => {
             doneArr.forEach(hId => {
                 const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
                 if(h) {
-                    // V12 Logic for Chart
-                    const rMax = window.getItemValueAtDate(h, 'reward', date);
-                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
                     const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                    const rMax = window.getItemValueAtDate(h, 'reward', date);
                     let lvl = levels[hId] || 'max';
                     if (isM && lvl === 'min') net += rMin; else net += rMax;
                 }
@@ -725,8 +714,7 @@ window.updateDetailedChart = (days) => {
             return net - spent;
         });
     };
-    // ... (Chart Rendering same as V11) ...
-     const flavioPoints = getPoints(allUsersData.flavio);
+    const flavioPoints = getPoints(allUsersData.flavio);
     const simonaPoints = getPoints(allUsersData.simona);
     if(detailedChartInstance) detailedChartInstance.destroy();
     detailedChartInstance = new Chart(ctx, {
@@ -736,10 +724,8 @@ window.updateDetailedChart = (days) => {
     });
 }
 
-// ... Re-include window.openAnalytics, window.openStats etc from previous version here ...
 window.openAnalytics = () => { document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
 window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
-// ... (Tag functions) ...
 function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
 window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
 window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
