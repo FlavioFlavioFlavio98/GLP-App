@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V10.0</title>
+    <title>GLP V11.0</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -19,7 +19,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V10.0 (Stats & Polish)</div>
+    <div class="version-tag">GLP V11.0 (Analytics & Shared Notes)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -61,10 +61,17 @@
         </div>
         <div class="sum-item">
             <div class="sum-label">Netto</div>
-            <div class="sum-val" id="sum-net">0</div> </div>
+            <div class="sum-val" id="sum-net">0</div>
+        </div>
     </div>
 
     <div id="mainContent">
+        <div class="note-container">
+            <label style="font-size:0.8em; color:#888; margin-left:5px;"><span class="material-icons-round" style="font-size:12px; vertical-align:middle">group</span> Diario di Bordo (Condiviso)</label>
+            <textarea id="dailyNoteArea" class="shared-note-area" placeholder="Scrivi una nota per questa giornata..." oninput="handleNoteInput(this.value)"></textarea>
+            <div id="noteStatus" style="font-size:0.7em; color:#666; text-align:right; margin-top:2px; height:15px;"></div>
+        </div>
+
         <h2>ABITUDINI DEL GIORNO</h2>
         <div id="habitList"></div>
         
@@ -131,40 +138,18 @@
     <div id="editModal" class="modal">
         <div class="modal-box">
             <h3><span class="material-icons-round">edit</span> Modifica</h3>
-            
             <div class="input-group">
                 <label style="font-size:0.8em; color:#888;">Data della modifica (per storico)</label>
                 <input type="date" id="editDate" class="full">
             </div>
-
-            <div class="input-group">
-                <label style="font-size:0.8em; color:#888;">Nome</label>
-                <input type="text" id="editName">
-            </div>
-
-            <div class="input-group">
-                <label style="font-size:0.8em; color:#888;">Tag</label>
-                <select id="editTag" class="full"><option value="">Nessun Tag</option></select>
-            </div>
-
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nome</label><input type="text" id="editName"></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Tag</label><select id="editTag" class="full"><option value="">Nessun Tag</option></select></div>
             <div class="grid-2">
-                <div class="input-group" id="editValGroup1">
-                    <label id="editLabel1" style="font-size:0.8em; color:#888;">Reward</label>
-                    <input type="number" id="editVal1">
-                </div>
-                <div class="input-group" id="editValGroup2">
-                    <label id="editLabel2" style="font-size:0.8em; color:#888;">Penalty</label>
-                    <input type="number" id="editVal2">
-                </div>
+                <div class="input-group" id="editValGroup1"><label id="editLabel1" style="font-size:0.8em; color:#888;">Reward</label><input type="number" id="editVal1"></div>
+                <div class="input-group" id="editValGroup2"><label id="editLabel2" style="font-size:0.8em; color:#888;">Penalty</label><input type="number" id="editVal2"></div>
             </div>
-
-            <div class="input-group">
-                <label style="font-size:0.8em; color:#888;">Nota (Opzionale)</label>
-                <textarea id="editNote" placeholder="Es. Aumentato perché più faticoso..." class="full" rows="2"></textarea>
-            </div>
-
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota (Opzionale)</label><textarea id="editNote" placeholder="Es. Aumentato perché..." class="full" rows="2"></textarea></div>
             <div class="history-list" id="editHistoryLog"></div>
-
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
             <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia / Elimina</button>
             <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
@@ -184,7 +169,8 @@
     <div id="settingsModal" class="modal">
         <div class="modal-box" style="text-align:center">
             <h3>Impostazioni</h3>
-            <button class="btn-backup" onclick="openStats()">📊 Statistiche</button>
+            <button class="btn-backup" onclick="openAnalytics()">📉 Analisi Dettagliata</button>
+            <button class="btn-backup" onclick="openStats()">📊 Statistiche Generali</button>
             <button class="btn-backup" onclick="openTagManager()">🏷️ Gestisci Tag</button>
             <hr style="border:1px solid #333; margin:20px 0;">
             <button class="btn-backup" onclick="exportData()"><span class="material-icons-round">download</span> Esporta Backup</button>
@@ -212,22 +198,41 @@
     <div id="statsModal" class="modal">
         <div class="modal-box" style="max-width:450px;">
             <h3>📊 Statistiche Utente</h3>
-            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                </div>
+            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
             <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <div id="analyticsModal" class="modal">
+        <div class="modal-box" style="width:95%; max-width:800px; height:85vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3>📉 Analisi</h3>
+                <button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button>
+            </div>
+            
+            <div class="switch-group" style="margin-bottom:15px;">
+                <div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div>
+                <div class="switch-opt" id="filter14" onclick="updateDetailedChart(14)">14 GG</div>
+                <div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div>
+            </div>
 
+            <div style="flex:1; position:relative; min-height:0;">
+                <canvas id="detailedChart"></canvas>
+            </div>
+            
+            <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
+                    <strong id="nodeDate" style="color:var(--text)">--/--/----</strong>
+                    <div style="font-size:0.9em"><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div>
+                </div>
+                <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em; max-height:60px; overflow-y:auto;">Nessuna nota</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW ok:', reg.scope))
-                    .catch(err => console.log('SW err:', err));
-            });
-        }
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }
     </script>
 </body>
 </html>

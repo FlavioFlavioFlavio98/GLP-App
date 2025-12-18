@@ -19,8 +19,11 @@ let globalData = null;
 let allUsersData = { flavio: null, simona: null };
 let viewDate = new Date(); 
 let chartInstance = null;
+let detailedChartInstance = null; // V11
 let pendingArchiveId = null;
-let editingTagIndex = null; // V10 for tag edit
+let editingTagIndex = null;
+let currentNoteUnsubscribe = null; // V11 for shared note listener
+let noteDebounceTimer = null; // V11 for shared note save
 
 // --- HELPERS ---
 window.getItemValueAtDate = (item, field, dateStr) => {
@@ -115,6 +118,9 @@ function renderView() {
     
     document.getElementById('datePicker').value = viewStr;
 
+    // V11: Set up Shared Note Listener for this date
+    setupNoteListener(viewStr);
+
     const dailyLogs = globalData.dailyLogs || {};
     const entry = dailyLogs[viewStr] || {};
     
@@ -166,11 +172,17 @@ function renderView() {
             const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
             let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
             
-            // V10: Badge visual style for values
+            // V11 STREAK CALCULATION
+            let streakHtml = '';
+            if (isToday) {
+                const s = calculateStreak(stableId);
+                if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
+            }
+
             hList.innerHTML += `
                 <div class="item ${statusClass}" style="${borderStyle}">
                     <div>
-                        <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}</div>
+                        <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
                         <div class="vals">
                             <span class="val-badge plus">+${currentReward}</span> / 
                             <span class="val-badge minus">-${currentPenalty}</span>
@@ -202,21 +214,19 @@ function renderView() {
     
     dailySpent += purchaseCost;
     
-    // V10 Summary Colors (Semaforo)
     const net = dailyEarned - dailySpent;
     document.getElementById('sum-earn').innerText = `+${dailyEarned}`;
     document.getElementById('sum-spent').innerText = `-${dailySpent}`;
     
     const netEl = document.getElementById('sum-net');
     netEl.innerText = (net > 0 ? '+' : '') + net;
-    netEl.className = 'sum-val'; // reset
+    netEl.className = 'sum-val'; 
     if (net < 0) netEl.classList.add('net-neg');
     else if (net < 10) netEl.classList.add('net-warn');
     else netEl.classList.add('net-pos');
 
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
-    // V10 Shop: Visuals & Text
     const sList = document.getElementById('shopList'); sList.innerHTML = '';
     (globalData.rewards || []).forEach((r) => {
         if (r.archivedAt && viewStr >= r.archivedAt) return;
@@ -255,9 +265,188 @@ function updateProgressCircle(earned, total) {
     text.innerText = Math.round(percent) + "%";
 }
 
+// --- V11 SHARED NOTES LOGIC ---
+function setupNoteListener(dateStr) {
+    // Unsubscribe previous listener if any
+    if (currentNoteUnsubscribe) {
+        currentNoteUnsubscribe();
+        currentNoteUnsubscribe = null;
+    }
+    
+    // Reset textarea
+    const textArea = document.getElementById('dailyNoteArea');
+    textArea.value = "";
+    document.getElementById('noteStatus').innerText = "Caricamento...";
+
+    // Listen to shared_notes/{dateStr}
+    const noteRef = doc(db, "shared_notes", dateStr);
+    currentNoteUnsubscribe = onSnapshot(noteRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Only update value if not currently focused (to avoid jumping cursor)
+            if (document.activeElement !== textArea) {
+                textArea.value = data.text || "";
+            }
+            document.getElementById('noteStatus').innerText = "Sincronizzato";
+        } else {
+            if (document.activeElement !== textArea) textArea.value = "";
+            document.getElementById('noteStatus').innerText = "Nessuna nota";
+        }
+    });
+}
+
+window.handleNoteInput = (val) => {
+    document.getElementById('noteStatus').innerText = "Salvataggio...";
+    clearTimeout(noteDebounceTimer);
+    noteDebounceTimer = setTimeout(async () => {
+        const dateStr = getDateString(viewDate);
+        const noteRef = doc(db, "shared_notes", dateStr);
+        await setDoc(noteRef, { text: val }, { merge: true });
+        document.getElementById('noteStatus').innerText = "Salvato";
+    }, 1000); // 1 sec debounce
+}
+
+// --- V11 STREAK CALCULATION ---
+function calculateStreak(habitId) {
+    let streak = 0;
+    // Streak includes today if done, or continues from yesterday
+    let d = new Date(); // Start Today
+    // Check backwards
+    // 1. Check Today
+    let str = getDateString(d);
+    let entry = globalData.dailyLogs?.[str];
+    let doneArr = [];
+    if (Array.isArray(entry)) doneArr = entry; 
+    else doneArr = entry?.habits || [];
+    
+    if (doneArr.includes(habitId)) {
+        streak++;
+    }
+
+    // 2. Check Yesterdays
+    while (true) {
+        d.setDate(d.getDate() - 1);
+        str = getDateString(d);
+        entry = globalData.dailyLogs?.[str];
+        doneArr = [];
+        if (Array.isArray(entry)) doneArr = entry; 
+        else doneArr = entry?.habits || [];
+
+        if (doneArr.includes(habitId)) {
+            streak++;
+        } else {
+            break; // Broken chain
+        }
+    }
+    return streak;
+}
+
+// --- V11 ANALYTICS MODAL ---
+window.openAnalytics = () => {
+    document.getElementById('analyticsModal').style.display = 'flex';
+    updateDetailedChart(30); // Default 30 days
+}
+
+window.updateDetailedChart = (days) => {
+    // UI Active State
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(`filter${days}`).classList.add('active');
+
+    const ctx = document.getElementById('detailedChart').getContext('2d');
+    
+    // Prepare Data
+    const labels = [];
+    const dates = [];
+    for(let i=days-1; i>=0; i--) {
+        const d = new Date(); 
+        d.setDate(d.getDate() - i);
+        const str = d.toISOString().split('T')[0];
+        dates.push(str);
+        labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+    }
+
+    const getPoints = (userData) => {
+        if(!userData || !userData.dailyLogs) return new Array(days).fill(0);
+        return dates.map(date => {
+            const entry = userData.dailyLogs[date];
+            if(!entry) return 0;
+            
+            let doneArr = [], failedArr = [], purchases = [];
+            if (Array.isArray(entry)) { doneArr = entry; } 
+            else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
+            
+            let net = 0;
+            doneArr.forEach(hId => {
+                const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(hObj) net += window.getItemValueAtDate(hObj, 'reward', date);
+            });
+            failedArr.forEach(hId => {
+                const hObj = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(hObj) net -= window.getItemValueAtDate(hObj, 'penalty', date);
+            });
+            let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
+            return net - spent;
+        });
+    };
+
+    const flavioPoints = getPoints(allUsersData.flavio);
+    const simonaPoints = getPoints(allUsersData.simona);
+
+    if(detailedChartInstance) detailedChartInstance.destroy();
+    
+    detailedChartInstance = new Chart(ctx, {
+        type: 'line', 
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', borderWidth:2, pointRadius: 5, pointHoverRadius: 8 },
+                { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', borderWidth:2, pointRadius: 5, pointHoverRadius: 8 }
+            ]
+        },
+        options: {
+            responsive: true, 
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            scales: { 
+                y: { grid: { color: '#333' }, ticks: { color: '#888' } }, 
+                x: { grid: { color: '#333' }, ticks: { color: '#888' } } 
+            },
+            onClick: async (e, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const dateStr = dates[index];
+                    const niceDate = labels[index] + "/" + new Date().getFullYear();
+                    
+                    const fVal = flavioPoints[index];
+                    const sVal = simonaPoints[index];
+
+                    // UI Update Overlay
+                    document.getElementById('nodeInfo').style.display = 'block';
+                    document.getElementById('nodeDate').innerText = niceDate;
+                    document.getElementById('nodeValFlavio').innerText = (fVal>0?'+':'')+fVal;
+                    document.getElementById('nodeValSimona').innerText = (sVal>0?'+':'')+sVal;
+                    document.getElementById('nodeNote').innerText = "Caricamento nota...";
+
+                    // Fetch Shared Note on Demand
+                    try {
+                        const snap = await getDoc(doc(db, "shared_notes", dateStr));
+                        if (snap.exists()) {
+                            document.getElementById('nodeNote').innerText = snap.data().text || "Nessuna nota scritta.";
+                        } else {
+                            document.getElementById('nodeNote').innerText = "Nessuna nota scritta.";
+                        }
+                    } catch(err) {
+                        document.getElementById('nodeNote').innerText = "Errore caricamento nota.";
+                    }
+                }
+            }
+        }
+    });
+}
+
+// --- STANDARD LOGIC ---
 window.toggleAccordion = (id) => { document.getElementById(id).classList.toggle('show'); }
 
-// --- BUSINESS LOGIC ---
 window.setHabitStatus = async (habitId, newStatus, value) => {
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
@@ -465,7 +654,6 @@ window.saveEdit = async () => {
     showToast("Salvato!", "✏️");
 }
 
-// --- V10 TAG MANAGER ---
 window.openTagManager = () => {
     editingTagIndex = null;
     document.getElementById('newTagName').value = '';
@@ -505,18 +693,15 @@ window.saveTagManager = async () => {
     let tags = globalData.tags || [];
 
     if (editingTagIndex !== null) {
-        // Edit existing
         tags[editingTagIndex].name = name;
         tags[editingTagIndex].color = color;
     } else {
-        // Create new
         tags.push({ id: Date.now().toString(), name, color });
     }
 
     const ref = doc(db, "users", currentUser);
     await updateDoc(ref, { tags: tags });
     
-    // Reset
     document.getElementById('newTagName').value = '';
     editingTagIndex = null;
     document.getElementById('btnSaveTag').innerText = "Crea Tag";
@@ -612,7 +797,7 @@ window.confirmArchive = async () => {
 
 window.toggleInputs = () => {}; 
 
-// --- V10 STATS CALCULATOR ---
+// --- STATS MODAL (GENERAL) ---
 window.openStats = () => {
     if (!globalData || !globalData.dailyLogs) return;
     
@@ -632,18 +817,14 @@ window.openStats = () => {
         if (Array.isArray(entry)) { doneArr = entry; } 
         else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
 
-        // Counts
         doneArr.forEach(hId => {
             const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
-            if(h) {
-                habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
-            }
+            if(h) habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
         });
         purchases.forEach(p => {
             rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1;
         });
 
-        // Net calc for day
         let dayEarn = 0; let daySpent = 0;
         doneArr.forEach(hId => {
             const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
@@ -664,38 +845,16 @@ window.openStats = () => {
     });
 
     const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0;
-    
-    // Find best habit/reward
     let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-');
     let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-');
 
     const html = `
-        <div class="stat-card">
-            <span class="stat-val">${avg}</span>
-            <span class="stat-label">Media Netta</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-val">${daysCount}</span>
-            <span class="stat-label">Giorni Attivi</span>
-        </div>
-        <div class="stat-card" style="border-color:var(--success)">
-            <span class="stat-val" style="color:var(--success)">+${maxNet === -Infinity ? 0 : maxNet}</span>
-            <span class="stat-label">Best Day</span>
-            <span class="stat-sub">${bestDay.split('-').reverse().join('/')}</span>
-        </div>
-        <div class="stat-card" style="border-color:var(--danger)">
-            <span class="stat-val" style="color:var(--danger)">${minNet === Infinity ? 0 : minNet}</span>
-            <span class="stat-label">Worst Day</span>
-            <span class="stat-sub">${worstDay.split('-').reverse().join('/')}</span>
-        </div>
-        <div class="stat-card" style="grid-column: span 2">
-            <span class="stat-val" style="font-size:1.1em">${bestHabit}</span>
-            <span class="stat-label">Abitudine Costante</span>
-        </div>
-        <div class="stat-card" style="grid-column: span 2">
-            <span class="stat-val" style="font-size:1.1em">${favReward}</span>
-            <span class="stat-label">Premio Preferito</span>
-        </div>
+        <div class="stat-card"><span class="stat-val">${avg}</span><span class="stat-label">Media Netta</span></div>
+        <div class="stat-card"><span class="stat-val">${daysCount}</span><span class="stat-label">Giorni Attivi</span></div>
+        <div class="stat-card" style="border-color:var(--success)"><span class="stat-val" style="color:var(--success)">+${maxNet === -Infinity ? 0 : maxNet}</span><span class="stat-label">Best Day</span><span class="stat-sub">${bestDay.split('-').reverse().join('/')}</span></div>
+        <div class="stat-card" style="border-color:var(--danger)"><span class="stat-val" style="color:var(--danger)">${minNet === Infinity ? 0 : minNet}</span><span class="stat-label">Worst Day</span><span class="stat-sub">${worstDay.split('-').reverse().join('/')}</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${bestHabit}</span><span class="stat-label">Abitudine Costante</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${favReward}</span><span class="stat-label">Premio Preferito</span></div>
     `;
 
     document.getElementById('statsContent').innerHTML = html;
