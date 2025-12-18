@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V12.1 Stable</title>
+    <title>GLP V12.3 Stable</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V12.1 (Fix)</div>
+    <div class="version-tag">GLP V12.3 (Fix)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -167,7 +167,7 @@
                 <div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div>
             </div>
 
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica</label><textarea id="editNote" class="full" rows="2"></textarea></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica</label><textarea id="editNote" class="full" rows="2" placeholder="Perché questa modifica? (Es. Troppo facile, cambiato obiettivo...)"></textarea></div>
             <div class="history-list" id="editHistoryLog"></div>
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
             <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia</button>
