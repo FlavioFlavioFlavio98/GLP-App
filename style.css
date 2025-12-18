@@ -54,11 +54,8 @@ h2 { color: var(--text-sec); font-size: 0.8em; margin: 25px 0 10px; letter-spaci
 .actions-group { display: flex; gap: 8px; align-items: center; }
 .btn-status { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #444; background: transparent; color: #666; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; }
 .btn-status.done:hover, .btn-status.done.active { background: var(--success); border-color: var(--success); color: #000; box-shadow: 0 0 10px rgba(76, 175, 80, 0.4); }
-/* V12: MIN Status Style */
 .btn-status.min { border-color: var(--success); color: var(--success); font-size: 0.6em; font-weight: bold; }
-/* V12: MAX Status Style */
 .btn-status.max { background: var(--success); border-color: var(--success); color: #000; }
-
 .btn-status.failed:hover, .btn-status.failed.active { background: var(--danger); border-color: var(--danger); color: #fff; box-shadow: 0 0 10px rgba(239, 83, 80, 0.4); }
 .btn-icon-minimal { background: transparent; border: none; color: #666; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: 0.2s; }
 .btn-icon-minimal:hover { background: rgba(255,255,255,0.1); color: #fff; }

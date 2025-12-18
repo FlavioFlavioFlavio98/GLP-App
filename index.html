@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V12.3 Stable</title>
+    <title>GLP V13.0 Analytics</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V12.3 (Fix)</div>
+    <div class="version-tag">GLP V13.0 (Analytics & Pie)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -82,12 +82,10 @@
     <div id="addModal" class="modal">
         <div class="modal-box">
             <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
-            
             <div class="switch-group">
                 <div class="switch-opt active" id="typeHabit" onclick="setAddType('habit')">Abitudine</div>
                 <div class="switch-opt" id="typeReward" onclick="setAddType('reward')">Premio</div>
             </div>
-
             <input type="text" id="newName" placeholder="Nome">
             <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
             <input type="text" id="newDesc" placeholder="Breve descrizione (Es. Min: 5 pag | Max: 1 cap)" class="full" style="display:none; font-size:0.9em">
@@ -97,44 +95,23 @@
                     <input type="checkbox" id="newIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('new')">
                     <label for="newIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
                 </div>
-
                 <div class="switch-group" style="margin-top:5px">
                     <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorrente</div>
                     <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo Giorno</div>
                 </div>
-
                 <div id="recurInput">
-                    <select id="newFrequency" class="full">
-                        <option value="1">Ogni Giorno</option>
-                        <option value="3">Ogni 3 Giorni</option>
-                        <option value="7">Settimanale</option>
-                        <option value="30">Mensile</option>
-                    </select>
+                    <select id="newFrequency" class="full"><option value="1">Ogni Giorno</option><option value="3">Ogni 3 Giorni</option><option value="7">Settimanale</option><option value="30">Mensile</option></select>
                 </div>
-
-                <div id="dateInput" style="display:none">
-                    <input type="date" id="newTargetDate" class="full">
-                </div>
-
+                <div id="dateInput" style="display:none"><input type="date" id="newTargetDate" class="full"></div>
                 <div class="grid-2">
-                    <div class="input-group">
-                        <label id="lblNewReward" style="font-size:0.8em; color:#888;">Reward (Max)</label>
-                        <input type="number" id="newReward" placeholder="+">
-                    </div>
-                    <div class="input-group">
-                        <label style="font-size:0.8em; color:#888;">Penalità</label>
-                        <input type="number" id="newPenalty" placeholder="-">
-                    </div>
+                    <div class="input-group"><label id="lblNewReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="newReward" placeholder="+"></div>
+                    <div class="input-group"><label style="font-size:0.8em; color:#888;">Penalità</label><input type="number" id="newPenalty" placeholder="-"></div>
                 </div>
-                
                 <div id="newMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
-                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label>
-                    <input type="number" id="newRewardMin" placeholder="Punti Minimi">
+                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="newRewardMin" placeholder="Punti Minimi">
                 </div>
             </div>
-            
             <div id="rewardInputs" style="display:none"><input type="number" id="newCost" placeholder="Costo"></div>
-            
             <button class="btn-main" onclick="addItem()">Salva</button>
             <button class="btn-sec" onclick="document.getElementById('addModal').style.display='none'">Chiudi</button>
         </div>
@@ -158,16 +135,13 @@
                     <div class="input-group" id="editValGroup2"><label style="font-size:0.8em; color:#888;">Penalty</label><input type="number" id="editVal2"></div>
                 </div>
                 <div id="editMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
-                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label>
-                    <input type="number" id="editRewardMin">
+                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="editRewardMin">
                 </div>
             </div>
-            
-            <div id="editRewardFields" style="display:none">
-                <div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div>
-            </div>
+            <div id="editRewardFields" style="display:none"><div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div></div>
 
             <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica</label><textarea id="editNote" class="full" rows="2" placeholder="Perché questa modifica? (Es. Troppo facile, cambiato obiettivo...)"></textarea></div>
+            
             <div class="history-list" id="editHistoryLog"></div>
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
             <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia</button>
@@ -188,11 +162,46 @@
     </div>
     
     <div id="statsModal" class="modal">
-        <div class="modal-box"><h3>Statistiche</h3><div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div><button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button></div>
+        <div class="modal-box" style="max-width:500px">
+            <h3>📊 Statistiche Generali</h3>
+            
+            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Distribuzione Punti</h4>
+            <div style="width:200px; height:200px; margin:0 auto 20px auto;">
+                <canvas id="pieChart"></canvas>
+            </div>
+
+            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Overview</h4>
+            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+            
+            <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
+        </div>
     </div>
     
     <div id="analyticsModal" class="modal">
-        <div class="modal-box" style="width:95%; max-width:800px; height:85vh; display:flex; flex-direction:column;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><h3>Analisi</h3><button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button></div><div class="switch-group" style="margin-bottom:15px;"><div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div><div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div></div><div style="flex:1; position:relative; min-height:0;"><canvas id="detailedChart"></canvas></div><div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;"><div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;"><strong id="nodeDate" style="color:var(--text)">--</strong><div><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div></div><div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div></div></div>
+        <div class="modal-box" style="width:95%; max-width:800px; height:85vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3>📉 Analisi Dettagliata</h3>
+                <button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button>
+            </div>
+            
+            <div class="switch-group" style="margin-bottom:15px;">
+                <div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div>
+                <div class="switch-opt" id="filter14" onclick="updateDetailedChart(14)">14 GG</div>
+                <div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div>
+            </div>
+
+            <div style="flex:1; position:relative; min-height:0;">
+                <canvas id="detailedChart"></canvas>
+            </div>
+            
+            <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
+                    <strong id="nodeDate" style="color:var(--text)">--</strong>
+                    <div><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div>
+                </div>
+                <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>

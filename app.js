@@ -20,6 +20,7 @@ let allUsersData = { flavio: null, simona: null };
 let viewDate = new Date(); 
 let chartInstance = null;
 let detailedChartInstance = null;
+let pieChartInstance = null; // V13
 let pendingArchiveId = null;
 let editingTagIndex = null;
 let currentNoteUnsubscribe = null;
@@ -314,7 +315,6 @@ function updateProgressCircle(earned, total) {
     text.innerText = Math.round(percent) + "%";
 }
 
-// --- LOGICA STATO (FISSATA) ---
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
@@ -339,11 +339,9 @@ window.setHabitStatus = async (habitId, action, value) => {
     const rewardMin = window.getItemValueAtDate(habitObj, 'rewardMin', dateStr);
     const penalty = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
 
-    // 1. FOTOGRAFIA DELLO STATO ATTUALE
     const wasDone = currentHabits.includes(habitId);
     const wasLevel = currentLevels[habitId] || 'max';
 
-    // 2. RESET
     if (wasDone) {
         if (isMulti && wasLevel === 'min') globalData.score -= rewardMin;
         else globalData.score -= rewardMax;
@@ -356,7 +354,6 @@ window.setHabitStatus = async (habitId, action, value) => {
         currentFailed = currentFailed.filter(id => id !== habitId);
     }
 
-    // 3. NUOVO STATO
     let actionType = 'neutral';
     
     if (action === 'failed') {
@@ -382,7 +379,6 @@ window.setHabitStatus = async (habitId, action, value) => {
                 actionType = 'done';
             }
         }
-        
         if (habitIndex >= 0 && currentHabits.includes(habitId)) habitsArr[habitIndex].lastDone = dateStr; 
     }
 
@@ -403,7 +399,6 @@ window.setHabitStatus = async (habitId, action, value) => {
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
 };
 
-// --- FUNZIONI STANDARD ---
 window.buyReward = async (name, cost) => {
     if(globalData.score < cost) { vibrate('heavy'); showToast("Punti insufficienti!", "❌"); return; }
     if(!confirm(`Comprare ${name} per ${cost}?`)) return;
@@ -483,27 +478,17 @@ window.openEditModal = (id, type) => {
     document.getElementById('editModal').style.display = 'flex';
 }
 
-// --- NUOVA FUNZIONE RENDER STORICO DETTAGLIATO ---
 function renderEditHistory(item, type) {
     const container = document.getElementById('editHistoryLog');
     container.innerHTML = '';
-    
-    // Ordina e clona per sicurezza
     let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
-    
-    if (changes.length === 0) {
-        container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>';
-        return;
-    }
-
+    if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
     let html = '';
     changes.forEach((change, index) => {
         let dateFmt = change.date.split('-').reverse().join('/'); 
         let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : '';
         let text = '';
-
         if (index === 0) {
-            // Creazione (Mostra valori iniziali)
             if (type === 'habit') {
                 let val = `Max: ${change.reward}`;
                 if (change.isMulti) val += ` | Min: ${change.rewardMin}`;
@@ -513,29 +498,17 @@ function renderEditHistory(item, type) {
                 text = `Costo iniziale: <b>${change.cost}</b>`;
             }
         } else {
-            // Confronto con precedente
             let prev = changes[index - 1];
             let diffs = [];
-
             if (type === 'habit') {
-                // Confronta Max
                 if ((prev.reward||0) !== (change.reward||0)) diffs.push(`Max: ${prev.reward||0}→<b>${change.reward||0}</b>`);
-                // Confronta Min
                 if ((prev.rewardMin||0) !== (change.rewardMin||0)) diffs.push(`Min: ${prev.rewardMin||0}→<b>${change.rewardMin||0}</b>`);
-                // Confronta Penalty
                 if ((prev.penalty||0) !== (change.penalty||0)) diffs.push(`Pen: ${prev.penalty||0}→<b>${change.penalty||0}</b>`);
-                // Confronta Multi
                 if (!!prev.isMulti !== !!change.isMulti) diffs.push(`Multi: ${prev.isMulti?'Sì':'No'}→<b>${change.isMulti?'Sì':'No'}</b>`);
             } else {
-                // Reward
                 if ((prev.cost||0) !== (change.cost||0)) diffs.push(`Costo: ${prev.cost||0}→<b>${change.cost||0}</b>`);
             }
-
-            if (diffs.length > 0) {
-                text = diffs.join(' | ');
-            } else {
-                text = "Modifica dettagli (Nome/Tag/Desc)";
-            }
+            if (diffs.length > 0) text = diffs.join(' | '); else text = "Modifica dettagli (Nome/Tag/Desc)";
         }
         html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
     });
@@ -614,7 +587,6 @@ window.setAddType = (t) => {
     document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
     if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active');
     else document.getElementById('modeSingle').classList.add('active'); 
-    
     document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
     document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
     const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
@@ -663,51 +635,7 @@ window.addItem = async () => {
     } catch(e) { console.error(e); }
 };
 
-function setupNoteListener(dateStr) {
-    if (currentNoteUnsubscribe) { currentNoteUnsubscribe(); currentNoteUnsubscribe = null; }
-    const textArea = document.getElementById('dailyNoteArea');
-    textArea.value = "";
-    document.getElementById('noteStatus').innerText = "Caricamento...";
-    const noteRef = doc(db, "shared_notes", dateStr);
-    currentNoteUnsubscribe = onSnapshot(noteRef, (docSnap) => {
-        if (docSnap.exists()) {
-            if (document.activeElement !== textArea) textArea.value = docSnap.data().text || "";
-            document.getElementById('noteStatus').innerText = "Sincronizzato";
-        } else {
-            if (document.activeElement !== textArea) textArea.value = "";
-            document.getElementById('noteStatus').innerText = "Nessuna nota";
-        }
-    });
-}
-window.handleNoteInput = (val) => {
-    document.getElementById('noteStatus').innerText = "Salvataggio...";
-    clearTimeout(noteDebounceTimer);
-    noteDebounceTimer = setTimeout(async () => {
-        const dateStr = getDateString(viewDate);
-        const noteRef = doc(db, "shared_notes", dateStr);
-        await setDoc(noteRef, { text: val }, { merge: true });
-        document.getElementById('noteStatus').innerText = "Salvato";
-    }, 1000);
-}
-function calculateStreak(habitId) {
-    let streak = 0;
-    let d = new Date(); 
-    let str = getDateString(d);
-    let entry = globalData.dailyLogs?.[str];
-    let doneArr = [];
-    if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
-    if (doneArr.includes(habitId)) streak++;
-    while (true) {
-        d.setDate(d.getDate() - 1);
-        str = getDateString(d);
-        entry = globalData.dailyLogs?.[str];
-        doneArr = [];
-        if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
-        if (doneArr.includes(habitId)) streak++; else break;
-    }
-    return streak;
-}
-
+// --- V13: ANALYTICS CON FETCH ASINCRONA & 14 GG ---
 window.updateDetailedChart = (days) => {
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
     document.getElementById(`filter${days}`).classList.add('active');
@@ -728,7 +656,6 @@ window.updateDetailedChart = (days) => {
             let failedArr = entry.failedHabits || [];
             let levels = entry.habitLevels || {};
             let purchases = entry.purchases || [];
-            
             let net = 0;
             doneArr.forEach(hId => {
                 const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
@@ -754,21 +681,186 @@ window.updateDetailedChart = (days) => {
     detailedChartInstance = new Chart(ctx, {
         type: 'line', 
         data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', borderWidth:2, pointRadius: 5 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', borderWidth:2, pointRadius: 5 } ] },
-        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' } } } }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            interaction: { mode: 'index', intersect: false }, 
+            scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' } } },
+            onClick: async (e, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const dateStr = dates[index];
+                    const niceDate = labels[index] + "/" + new Date().getFullYear();
+                    const fVal = flavioPoints[index];
+                    const sVal = simonaPoints[index];
+
+                    document.getElementById('nodeInfo').style.display = 'block';
+                    document.getElementById('nodeDate').innerText = niceDate;
+                    document.getElementById('nodeValFlavio').innerText = (fVal>0?'+':'')+fVal;
+                    document.getElementById('nodeValSimona').innerText = (sVal>0?'+':'')+sVal;
+                    document.getElementById('nodeNote').innerText = "Caricamento nota...";
+
+                    try {
+                        const snap = await getDoc(doc(db, "shared_notes", dateStr));
+                        if (snap.exists()) {
+                            document.getElementById('nodeNote').innerText = snap.data().text || "Nessuna nota scritta.";
+                        } else {
+                            document.getElementById('nodeNote').innerText = "Nessuna nota scritta.";
+                        }
+                    } catch(err) {
+                        document.getElementById('nodeNote').innerText = "Errore caricamento nota.";
+                    }
+                }
+            }
+        }
     });
 }
 
-window.openAnalytics = () => { document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
-window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
-function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
-window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
-window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
-window.deleteTag = async (idx) => { if(!confirm("Eliminare tag?")) return; const tags = globalData.tags; tags.splice(idx, 1); await updateDoc(doc(db, "users", currentUser), { tags }); renderTagsList(); }
-window.archiveFromEdit = () => { if(!editingItem) return; archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); document.getElementById('editModal').style.display = 'none'; }
-window.archiveItem = (list, id) => { pendingArchiveId = { list, id }; document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; document.getElementById('archiveModal').style.display = 'flex'; }
-window.confirmArchive = async () => { if(!pendingArchiveId) return; const date = document.getElementById('archiveDate').value; const { list, id } = pendingArchiveId; const ref = doc(db, "users", currentUser); const arr = globalData[list]; const idx = arr.findIndex(i => i.id === id); if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } document.getElementById('archiveModal').style.display = 'none'; }
-window.toggleInputs = () => {}; 
-window.openStats = () => { if (!globalData || !globalData.dailyLogs) return; let totalNet = 0; let daysCount = 0; let maxNet = -Infinity; let bestDay = '-'; let minNet = Infinity; let worstDay = '-'; let habitCounts = {}; let rewardCounts = {}; const dates = Object.keys(globalData.dailyLogs).sort(); dates.forEach(date => { daysCount++; const entry = globalData.dailyLogs[date]; let doneArr = [], failedArr = [], purchases = []; if (Array.isArray(entry)) { doneArr = entry; } else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; } doneArr.forEach(hId => { const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) habitCounts[h.name] = (habitCounts[h.name] || 0) + 1; }); purchases.forEach(p => { rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1; }); let dayEarn = 0; let daySpent = 0; doneArr.forEach(hId => { const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) dayEarn += window.getItemValueAtDate(h, 'reward', date); }); failedArr.forEach(hId => { const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) daySpent += window.getItemValueAtDate(h, 'penalty', date); }); let pCost = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0); daySpent += pCost; let dayNet = dayEarn - daySpent; totalNet += dayNet; if (dayNet > maxNet) { maxNet = dayNet; bestDay = date; } if (dayNet < minNet) { minNet = dayNet; worstDay = date; } }); const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0; let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-'); let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-'); const html = `<div class="stat-card"><span class="stat-val">${avg}</span><span class="stat-label">Media Netta</span></div><div class="stat-card"><span class="stat-val">${daysCount}</span><span class="stat-label">Giorni Attivi</span></div><div class="stat-card" style="border-color:var(--success)"><span class="stat-val" style="color:var(--success)">+${maxNet === -Infinity ? 0 : maxNet}</span><span class="stat-label">Best Day</span><span class="stat-sub">${bestDay.split('-').reverse().join('/')}</span></div><div class="stat-card" style="border-color:var(--danger)"><span class="stat-val" style="color:var(--danger)">${minNet === Infinity ? 0 : minNet}</span><span class="stat-label">Worst Day</span><span class="stat-sub">${worstDay.split('-').reverse().join('/')}</span></div><div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${bestHabit}</span><span class="stat-label">Abitudine Costante</span></div><div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${favReward}</span><span class="stat-label">Premio Preferito</span></div>`; document.getElementById('statsContent').innerHTML = html; document.getElementById('statsModal').style.display = 'flex'; }
+// --- V13: STATISTICHE (TORTA + POWER DAY) ---
+window.openStats = () => {
+    if (!globalData || !globalData.dailyLogs) return;
+    
+    // VARIABILI PER POWER DAY E STATS GENERALI
+    let totalNet = 0; let daysCount = 0;
+    let maxNet = -Infinity; let bestDay = '-';
+    let minNet = Infinity; let worstDay = '-';
+    let habitCounts = {}; let rewardCounts = {};
+    
+    // VARIABILI PER TORTA
+    let tagScores = {}; // { tagId: score }
+    const tagsMap = {}; (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
+
+    // VARIABILI PER POWER DAY (0=Dom, 6=Sab)
+    let dowStats = {0:{sum:0, count:0}, 1:{sum:0, count:0}, 2:{sum:0, count:0}, 3:{sum:0, count:0}, 4:{sum:0, count:0}, 5:{sum:0, count:0}, 6:{sum:0, count:0}};
+
+    const dates = Object.keys(globalData.dailyLogs).sort();
+    
+    dates.forEach(date => {
+        daysCount++;
+        const entry = globalData.dailyLogs[date];
+        let doneArr = [], failedArr = [], purchases = [];
+        let levels = entry.habitLevels || {};
+        
+        if (Array.isArray(entry)) { doneArr = entry; } 
+        else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
+
+        let dayEarn = 0; let daySpent = 0;
+        
+        // CALCOLO GUADAGNO E SPESA
+        doneArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) {
+                habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+                // Calcolo preciso punti
+                const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                const rMax = window.getItemValueAtDate(h, 'reward', date);
+                let lvl = levels[hId] || 'max';
+                let points = (isM && lvl === 'min') ? rMin : rMax;
+                
+                dayEarn += points;
+                
+                // Aggiorna Torta
+                const tId = h.tagId || 'uncategorized';
+                tagScores[tId] = (tagScores[tId] || 0) + points;
+            }
+        });
+
+        failedArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) daySpent += window.getItemValueAtDate(h, 'penalty', date);
+        });
+        
+        purchases.forEach(p => {
+            rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1;
+            daySpent += parseInt(p.cost);
+        });
+
+        let dayNet = dayEarn - daySpent;
+        totalNet += dayNet;
+
+        // Aggiorna Best/Worst Day Assoluto
+        if (dayNet > maxNet) { maxNet = dayNet; bestDay = date; }
+        if (dayNet < minNet) { minNet = dayNet; worstDay = date; }
+
+        // Aggiorna Power Day (Settimanale)
+        const dObj = new Date(date);
+        const dayOfWeek = dObj.getDay(); // 0-6
+        dowStats[dayOfWeek].sum += dayNet;
+        dowStats[dayOfWeek].count++;
+    });
+
+    // 1. RENDER CHART TORTA
+    if(pieChartInstance) pieChartInstance.destroy();
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    
+    let pieLabels = []; let pieData = []; let pieColors = [];
+    Object.keys(tagScores).forEach(tId => {
+        if(tId === 'uncategorized') {
+            pieLabels.push('Senza Categoria');
+            pieColors.push('#666666');
+        } else {
+            const tObj = tagsMap[tId];
+            if(tObj) {
+                pieLabels.push(tObj.name);
+                pieColors.push(tObj.color);
+            }
+        }
+        pieData.push(tagScores[tId]);
+    });
+
+    pieChartInstance = new Chart(pieCtx, {
+        type: 'doughnut',
+        data: {
+            labels: pieLabels,
+            datasets: [{
+                data: pieData,
+                backgroundColor: pieColors,
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // 2. CALCOLO POWER DAY
+    const daysName = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    let bestDow = -1; let maxDowAvg = -Infinity;
+    let worstDow = -1; let minDowAvg = Infinity;
+
+    for(let i=0; i<7; i++) {
+        if(dowStats[i].count > 0) {
+            let avg = dowStats[i].sum / dowStats[i].count;
+            if(avg > maxDowAvg) { maxDowAvg = avg; bestDow = i; }
+            if(avg < minDowAvg) { minDowAvg = avg; worstDow = i; }
+        }
+    }
+
+    // 3. HTML GENERALE
+    const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0;
+    let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-');
+    let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-');
+
+    const html = `
+        <div class="stat-card"><span class="stat-val">${avg}</span><span class="stat-label">Media Netta</span></div>
+        <div class="stat-card"><span class="stat-val">${daysCount}</span><span class="stat-label">Giorni Attivi</span></div>
+        
+        <div class="stat-card" style="border-color:var(--success)"><span class="stat-val" style="color:var(--success)">${bestDow>=0 ? daysName[bestDow] : '-'}</span><span class="stat-label">Giorno Top (Med: ${maxDowAvg.toFixed(0)})</span></div>
+        <div class="stat-card" style="border-color:var(--danger)"><span class="stat-val" style="color:var(--danger)">${worstDow>=0 ? daysName[worstDow] : '-'}</span><span class="stat-label">Giorno Flop (Med: ${minDowAvg.toFixed(0)})</span></div>
+
+        <div class="stat-card" style="border-color:var(--theme-color); opacity:0.8"><span class="stat-val" style="color:var(--theme-color); font-size:1em">+${maxNet === -Infinity ? 0 : maxNet} (${bestDay.split('-').reverse().join('/')})</span><span class="stat-label">Record Assoluto</span></div>
+        
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${bestHabit}</span><span class="stat-label">Abitudine Costante</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${favReward}</span><span class="stat-label">Premio Preferito</span></div>
+    `;
+
+    document.getElementById('statsContent').innerHTML = html;
+    document.getElementById('statsModal').style.display = 'flex';
+}
+
 window.exportData = async () => { vibrate('light'); showToast("Backup...", "⏳"); try { const usersCol = collection(db, 'users'); const userSnapshot = await getDocs(usersCol); let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); const date = new Date().toISOString().slice(0,10); downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Fatto!", "✅"); } catch (e) { console.error(e); showToast("Errore", "❌"); } };
 window.importData = (files) => { if (files.length === 0) return; const file = files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const backupData = JSON.parse(e.target.result); if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } showToast("Ripristino...", "⏳"); for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500); } catch (err) { console.error(err); showToast("File non valido", "❌"); } document.getElementById('importFile').value = ''; }; reader.readAsText(file); };
 window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
