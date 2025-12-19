@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V14.3</title>
+    <title>GLP V14.4</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -24,7 +24,7 @@ window.onerror = function(msg, url, line) {
    document.getElementById('debug-error').innerHTML = "ERRORE: " + msg + " (Riga " + line + ")";
 };
 </script>
-    <div class="version-tag">GLP V14.3 (If Habits)</div>
+    <div class="version-tag">GLP V14.4 (If Habits)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -206,23 +206,17 @@ window.onerror = function(msg, url, line) {
         </div>
     </div>
 
-    <script type="module" src="app.js?forceUpdate=998"></script>
+    <script type="module" src="app.js?forceUpdate=997"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
 <script>
     function toggleAccordion(id) {
-    var x = document.getElementById(id);
-    if (!x) return;
-    
-    // Se ha già un'altezza impostata, la rimuoviamo (Chiudi)
-    if (x.style.maxHeight) {
-        x.style.maxHeight = null;
-        x.classList.remove("show");
-    } else {
-        // Altrimenti calcoliamo l'altezza del contenuto e la impostiamo (Apri)
-        x.style.maxHeight = x.scrollHeight + "px";
-        x.classList.add("show");
+        var x = document.getElementById(id);
+        if (x) {
+            // Toggle aggiunge la classe se manca, la toglie se c'è.
+            // Il resto lo fa il CSS che hai appena incollato.
+            x.classList.toggle("show");
+        }
     }
-}
 </script>
 </body>
 </html>
