@@ -70,12 +70,13 @@ function countRewardPurchases(rewardName) {
     return count;
 }
 
+
 window.toggleAccordion = (id) => {
-    const x = document.getElementById(id);
-    if (x.className.indexOf("show") == -1) {
-        x.className += " show";
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.toggle('show');
     } else {
-        x.className = x.className.replace(" show", "");
+        console.error("Nessun elemento trovato con id:", id);
     }
 };
 
