@@ -46,7 +46,6 @@ window.getItemValueAtDate = (item, field, dateStr) => {
     for (let change of sortedChanges) {
         if (change.date <= dateStr) validChange = change; else break;
     }
-    
     if (validChange) {
         if(field === 'isMulti') return validChange.isMulti || false;
         if(field === 'description') return validChange.description || "";
@@ -69,8 +68,6 @@ function countRewardPurchases(rewardName) {
     });
     return count;
 }
-
-// NOTA: La funzione toggleAccordion è stata rimossa da qui perché presente in index.html
 
 window.toggleInputs = () => {}; 
 
@@ -154,8 +151,12 @@ function renderView() {
     const habitLevels = entry.habitLevels || {}; 
     const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
-    const hList = document.getElementById('habitList'); hList.innerHTML = '';
-    const ifList = document.getElementById('ifList'); ifList.innerHTML = ''; 
+    const hList = document.getElementById('habitList');
+    const ifList = document.getElementById('ifList');
+    
+    // Performance optimization: Build strings first
+    let hListHtml = '';
+    let ifListHtml = '';
     
     let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
     let visibleCount = 0; let ifCount = 0;
@@ -194,12 +195,8 @@ function renderView() {
         }
 
         if (shouldShow) {
-            if (!isIfHabit) {
-                visibleCount++;
-                dailyTotalPot += currentReward; 
-            } else {
-                ifCount++;
-            }
+            if (!isIfHabit) { visibleCount++; dailyTotalPot += currentReward; } 
+            else { ifCount++; }
             
             if(isDone) {
                 let level = habitLevels[stableId] || 'max'; 
@@ -250,24 +247,31 @@ function renderView() {
                     </div>
                 </div>`;
             
-            if(isIfHabit) ifList.innerHTML += itemHtml;
-            else hList.innerHTML += itemHtml;
+            if(isIfHabit) ifListHtml += itemHtml;
+            else hListHtml += itemHtml;
         } 
     });
     
-    if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
-    if(ifCount === 0) ifList.innerHTML = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
+    // Write HTML only once (Performance Fix)
+    if(visibleCount === 0) hListHtml = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
+    hList.innerHTML = hListHtml;
+
+    if(ifCount === 0) ifListHtml = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
+    ifList.innerHTML = ifListHtml;
     
     // Acquisti
     let purchaseCost = 0;
-    const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
-    if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
+    const pList = document.getElementById('purchasedList'); 
+    let pListHtml = '';
+    
+    if(todaysPurchases.length === 0) { pListHtml = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
     else {
         todaysPurchases.forEach((p, idx) => {
             purchaseCost += parseInt(p.cost);
-            pList.innerHTML += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
+            pListHtml += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
         });
     }
+    pList.innerHTML = pListHtml;
     
     dailySpent += purchaseCost;
     const net = dailyEarned - dailySpent;
@@ -281,7 +285,9 @@ function renderView() {
 
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
-    const sList = document.getElementById('shopList'); sList.innerHTML = '';
+    // REWARD SHOP RENDER
+    const sList = document.getElementById('shopList');
+    let sListHtml = '';
     (globalData.rewards || []).forEach((r) => {
         if (r.archivedAt && viewStr >= r.archivedAt) return;
         const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
@@ -291,7 +297,7 @@ function renderView() {
         const count = countRewardPurchases(r.name);
         const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
 
-        sList.innerHTML += `
+        sListHtml += `
             <div class="item" style="${borderStyle}">
                 <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
                 <div class="actions-group">
@@ -300,6 +306,9 @@ function renderView() {
                 </div>
             </div>`;
     });
+    // Se vuoto o se ci sono dati, scriviamo tutto in un colpo solo
+    if(sListHtml === '') sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
+    sList.innerHTML = sListHtml;
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
