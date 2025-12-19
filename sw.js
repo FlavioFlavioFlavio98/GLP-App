@@ -1,12 +1,12 @@
-const CACHE_NAME = 'glp-v14-7';
+const CACHE_NAME = 'glp-v14-8';
 
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
-  './style.css?v=14.7',
+  './style.css?v=14.8',
   './app.js',
-  './app.js?v=14.7',
+  './app.js?v=14.8',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',

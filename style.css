@@ -61,17 +61,17 @@ h2 { font-size: 0.9em; color: #666; text-transform: uppercase; margin: 20px 0 10
 
 /* MIN: Bordo verde, sfondo trasparente (COME RICHIESTO) */
 .btn-status.done.min {
-    background: #333;
-    border: 1px solid #444;
-    color: #666;
-    font-size: 0.7em;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid #444 !important;
+    color: #777 !important;
+    font-size: 0.7em !important;
 }
 .btn-status.done.min.active {
-    background: transparent;
-    border: 2px solid var(--success);
-    color: var(--success);
+    background: transparent !important;
+    border: 2px solid var(--success) !important;
+    color: var(--success) !important;
+    font-size: 0.7em !important;
 }
-
 .btn-status.failed { background: #333; color: #666; }
 .btn-status.failed.active { background: var(--danger); color: white; }
 .btn-icon-minimal { background: none; border: none; color: #555; cursor: pointer; padding: 5px; }

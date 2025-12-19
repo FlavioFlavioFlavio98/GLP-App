@@ -19,10 +19,10 @@ let currentUser = localStorage.getItem('glp_user') || 'flavio';
 let globalData = null;
 let allUsersData = { flavio: null, simona: null };
 let viewDate = new Date();
-const APP_VERSION = '14.7'; 
+const APP_VERSION = '14.8'; 
 let chartInstance = null;
 
-// ===== Performance (V14.7): batch render/chart updates =====
+// ===== Performance (V14.6): batch render/chart updates =====
 let _renderRaf = null;
 function scheduleRenderView(){
     if(_renderRaf) return;
