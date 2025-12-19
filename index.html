@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V13.2 Analytics</title>
+    <title>GLP V14.0</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=14.0">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V13.2 (Analytics & Pie)</div>
+    <div class="version-tag">GLP V14.0 (If Habits)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -65,8 +64,10 @@
         <h2>ABITUDINI DEL GIORNO</h2>
         <div id="habitList"></div>
         
-        <button class="accordion" onclick="toggleAccordion('upcomingList')"><span>📅 In Programma</span><span class="material-icons-round">expand_more</span></button>
-        <div class="panel" id="upcomingList"><div style="text-align:center; color:#555; padding:10px;">Niente in programma</div></div>
+        <button class="accordion" onclick="toggleAccordion('ifPanel')"><span>🤷‍♂️ Abitudini Se/If (Bonus)</span><span class="material-icons-round">expand_more</span></button>
+        <div class="panel" id="ifPanel">
+            <div id="ifList"></div>
+        </div>
 
         <h2>ACQUISTI DEL GIORNO</h2>
         <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
@@ -95,17 +96,21 @@
                     <input type="checkbox" id="newIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('new')">
                     <label for="newIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
                 </div>
+                
                 <div class="switch-group" style="margin-top:5px">
-                    <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorrente</div>
-                    <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo Giorno</div>
+                    <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorr.</div>
+                    <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo</div>
+                    <div class="switch-opt" id="modeIf" onclick="setRecurMode('if')">If (Bonus)</div>
                 </div>
+
                 <div id="recurInput">
                     <select id="newFrequency" class="full"><option value="1">Ogni Giorno</option><option value="3">Ogni 3 Giorni</option><option value="7">Settimanale</option><option value="30">Mensile</option></select>
                 </div>
                 <div id="dateInput" style="display:none"><input type="date" id="newTargetDate" class="full"></div>
+                
                 <div class="grid-2">
                     <div class="input-group"><label id="lblNewReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="newReward" placeholder="+"></div>
-                    <div class="input-group"><label style="font-size:0.8em; color:#888;">Penalità</label><input type="number" id="newPenalty" placeholder="-"></div>
+                    <div class="input-group" id="groupNewPenalty"><label style="font-size:0.8em; color:#888;">Penalità</label><input type="number" id="newPenalty" placeholder="-"></div>
                 </div>
                 <div id="newMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
                     <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="newRewardMin" placeholder="Punti Minimi">
@@ -164,15 +169,10 @@
     <div id="statsModal" class="modal">
         <div class="modal-box" style="max-width:500px">
             <h3>📊 Statistiche Generali</h3>
-            
             <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Distribuzione Punti</h4>
-            <div style="width:200px; height:200px; margin:0 auto 20px auto;">
-                <canvas id="pieChart"></canvas>
-            </div>
-
+            <div style="width:200px; height:200px; margin:0 auto 20px auto;"><canvas id="pieChart"></canvas></div>
             <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Overview</h4>
             <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
-            
             <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
         </div>
     </div>
@@ -183,17 +183,12 @@
                 <h3>📉 Analisi Dettagliata</h3>
                 <button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button>
             </div>
-            
             <div class="switch-group" style="margin-bottom:15px;">
                 <div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div>
                 <div class="switch-opt" id="filter14" onclick="updateDetailedChart(14)">14 GG</div>
                 <div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div>
             </div>
-
-            <div style="flex:1; position:relative; min-height:0;">
-                <canvas id="detailedChart"></canvas>
-            </div>
-            
+            <div style="flex:1; position:relative; min-height:0;"><canvas id="detailedChart"></canvas></div>
             <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
                     <strong id="nodeDate" style="color:var(--text)">--</strong>
@@ -204,7 +199,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=14.0"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
 </body>
 </html>

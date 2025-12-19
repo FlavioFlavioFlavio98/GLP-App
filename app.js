@@ -35,7 +35,6 @@ let recurMode = 'recur';
 // SEZIONE 1: HELPERS & UTILITIES
 // ==========================================
 
-// Helper Time Travel (Fondamentale: non toccare)
 window.getItemValueAtDate = (item, field, dateStr) => {
     if (!item.changes || item.changes.length === 0) {
         if(field === 'isMulti') return item.isMulti || false;
@@ -71,7 +70,6 @@ function countRewardPurchases(rewardName) {
     return count;
 }
 
-// Funzione Accordion (RIPRISTINATA: Fixa il menu a tendina)
 window.toggleAccordion = (id) => {
     const x = document.getElementById(id);
     if (x.className.indexOf("show") == -1) {
@@ -81,10 +79,8 @@ window.toggleAccordion = (id) => {
     }
 };
 
-// Funzione placeholder per evitare errori HTML (RIPRISTINATA)
 window.toggleInputs = () => {}; 
 
-// Swipe
 let touchStartX = 0; let touchEndX = 0;
 document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
 document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
@@ -95,7 +91,6 @@ function handleSwipe() {
 
 window.addEventListener('online', () => document.body.classList.remove('offline'));
 window.addEventListener('offline', () => document.body.classList.add('offline'));
-
 window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
 window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
 
@@ -167,10 +162,10 @@ function renderView() {
     const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
     const hList = document.getElementById('habitList'); hList.innerHTML = '';
-    const upcomingList = document.getElementById('upcomingList'); upcomingList.innerHTML = '';
+    const ifList = document.getElementById('ifList'); ifList.innerHTML = ''; // V14: Lista separata
     
     let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
-    let visibleCount = 0; let upcomingCount = 0;
+    let visibleCount = 0; let ifCount = 0;
 
     const tagsMap = {};
     (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
@@ -191,9 +186,14 @@ function renderView() {
         const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
         const description = window.getItemValueAtDate(h, 'description', viewStr);
 
+        // V14: Logica IF
+        let isIfHabit = (h.type === 'if');
+
         let shouldShow = true;
         let daysLeft = 0;
-        if (h.type !== 'single' && freq > 1) {
+        
+        // Logica ricorrenza (solo se non è IF e non è single)
+        if (!isIfHabit && h.type !== 'single' && freq > 1) {
             if (isDone || isFailed) { shouldShow = true; } else {
                 if (h.lastDone) {
                     const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
@@ -203,8 +203,12 @@ function renderView() {
         }
 
         if (shouldShow) {
-            visibleCount++;
-            dailyTotalPot += currentReward; 
+            if (!isIfHabit) {
+                visibleCount++;
+                dailyTotalPot += currentReward; // Solo i doveri contano per il potenziale
+            } else {
+                ifCount++;
+            }
             
             if(isDone) {
                 let level = habitLevels[stableId] || 'max'; 
@@ -218,7 +222,7 @@ function renderView() {
             const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
             
             let streakHtml = '';
-            if (isToday) {
+            if (isToday && !isIfHabit) {
                 const s = calculateStreak(stableId);
                 if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
             }
@@ -233,32 +237,38 @@ function renderView() {
             let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
             let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
             
-            hList.innerHTML += `
+            // V14: Costruzione HTML Differenziata
+            const failBtn = isIfHabit 
+                ? '' // Niente tasto X per le If
+                : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
+
+            const itemHtml = `
                 <div class="item ${statusClass}" style="${borderStyle}">
                     <div>
                         <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
                         ${descHtml}
                         <div class="vals">
-                            <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> / 
-                            <span class="val-badge minus">-${currentPenalty}</span>
+                            <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> ${isIfHabit ? '' : `/ <span class="val-badge minus">-${currentPenalty}</span>`}
                         </div>
                     </div>
                     <div class="actions-group">
                         <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                        <button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>
+                        ${failBtn}
                         <button class="btn-status done ${btnClass}" onclick="setHabitStatus('${stableId}', 'next', 0)">
                              ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
                         </button>
                     </div>
                 </div>`;
-        } else {
-            upcomingCount++;
-            upcomingList.innerHTML += `<div class="item" style="opacity:0.6; border-left:4px solid #555"><div><h3>${h.name}</h3><div class="vals">Tra ${daysLeft} gg</div></div></div>`;
-        }
+            
+            if(isIfHabit) ifList.innerHTML += itemHtml;
+            else hList.innerHTML += itemHtml;
+        } 
     });
     
     if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
+    if(ifCount === 0) ifList.innerHTML = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
     
+    // Acquisti
     let purchaseCost = 0;
     const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
     if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
@@ -302,20 +312,6 @@ function renderView() {
     });
 }
 
-function updateProgressCircle(earned, total) {
-    const circle = document.getElementById('prog-circle');
-    const text = document.getElementById('prog-text');
-    const radius = circle.r.baseVal.value;
-    const circumference = radius * 2 * Math.PI; 
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    let percent = total === 0 ? 0 : (earned / total) * 100;
-    let visualPct = Math.max(0, Math.min(100, percent));
-    const offset = circumference - (visualPct / 100) * circumference;
-    circle.style.strokeDashoffset = offset;
-    text.innerText = Math.round(percent) + "%";
-}
-
-// LOGICA CAMBIO STATO (V12.2 - Stable)
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
@@ -382,13 +378,15 @@ window.setHabitStatus = async (habitId, action, value) => {
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
 };
 
-// ==========================================
-// SEZIONE 4: MODALI, GRAFICI E AZIONI EXTRA
-// ==========================================
-
+// V14: Consenti debito
 window.buyReward = async (name, cost) => {
-    if(globalData.score < cost) { vibrate('heavy'); showToast("Punti insufficienti!", "❌"); return; }
-    if(!confirm(`Comprare ${name} per ${cost}?`)) return;
+    // V14 FIX: Avviso solo, non bloccare
+    if(globalData.score < cost) { 
+        if(!confirm(`Attenzione: Saldo insufficiente (${globalData.score}). Andrai in negativo. Continuare?`)) return;
+    } else {
+        if(!confirm(`Comprare ${name} per ${cost}?`)) return;
+    }
+    
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
     let entry = globalData.dailyLogs?.[dateStr] || {};
@@ -417,24 +415,16 @@ window.refundPurchase = async (idx, cost) => {
     vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
-// V13.2 FIX: Controllo di Sicurezza per Grafico (Evita Crash)
 window.updateDetailedChart = (days) => {
-    // FIX: Se i dati non sono ancora arrivati, esci senza fare nulla
-    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) {
-        console.log("Dati non ancora pronti per il grafico");
-        return; 
-    }
-
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { console.log("Dati non pronti"); return; }
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
     document.getElementById(`filter${days}`).classList.add('active');
-
     const ctx = document.getElementById('detailedChart').getContext('2d');
     const labels = []; const dates = [];
     for(let i=days-1; i>=0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i);
         const str = d.toISOString().split('T')[0];
-        dates.push(str);
-        labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+        dates.push(str); labels.push(`${d.getDate()}/${d.getMonth()+1}`);
     }
     const getPoints = (userData) => {
         if(!userData || !userData.dailyLogs) return new Array(days).fill(0);
@@ -494,15 +484,7 @@ window.updateDetailedChart = (days) => {
         }
     });
 }
-window.openAnalytics = () => { 
-    // FIX: Controlla che i dati siano pronti prima di aprire il modale
-    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) {
-        showToast("Caricamento dati...", "⏳");
-        return; 
-    }
-    document.getElementById('analyticsModal').style.display = 'flex'; 
-    updateDetailedChart(30); 
-}
+window.openAnalytics = () => { if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
 
 window.openStats = () => {
     if (!globalData || !globalData.dailyLogs) return;
@@ -609,19 +591,48 @@ window.setAddType = (t) => {
     addType = t;
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
     document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
-    if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active'); else document.getElementById('modeSingle').classList.add('active'); 
+    if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active'); 
+    else if(recurMode === 'single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); 
+
     document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
     document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
     const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
     (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
 }
 
+// V14: Logica UI per la modalità IF
 window.setRecurMode = (m) => {
     recurMode = m;
-    document.getElementById('modeRecur').classList.remove('active'); document.getElementById('modeSingle').classList.remove('active');
-    document.getElementById(m==='recur'?'modeRecur':'modeSingle').classList.add('active');
-    document.getElementById('recurInput').style.display = m==='recur'?'block':'none'; document.getElementById('dateInput').style.display = m==='single'?'block':'none';
-    if(m==='single') document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
+    // Reset classi
+    document.getElementById('modeRecur').classList.remove('active'); 
+    document.getElementById('modeSingle').classList.remove('active');
+    document.getElementById('modeIf').classList.remove('active');
+    
+    // Attiva classe corretta
+    if(m==='recur') document.getElementById('modeRecur').classList.add('active');
+    else if(m==='single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); // IF
+
+    // Gestione visibilità input
+    const recurInput = document.getElementById('recurInput');
+    const dateInput = document.getElementById('dateInput');
+    const penaltyInput = document.getElementById('groupNewPenalty');
+
+    if(m === 'recur') {
+        recurInput.style.display = 'block';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'visible';
+    } else if (m === 'single') {
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'block';
+        penaltyInput.style.visibility = 'visible';
+        document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
+    } else { // IF MODE
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'hidden'; // Nascondi penalità
+    }
 }
 
 window.openEditModal = (id, type) => {
@@ -697,9 +708,34 @@ window.addItem = async () => {
     const id = Date.now().toString(); const ref = doc(db, "users", currentUser);
     try {
         if(addType === 'habit') {
-            const r = parseInt(document.getElementById('newReward').value) || 0; const p = parseInt(document.getElementById('newPenalty').value) || 0; const freq = document.getElementById('newFrequency').value || 1; const targetDate = document.getElementById('newTargetDate').value; const isMulti = document.getElementById('newIsMulti').checked; const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; const desc = document.getElementById('newDesc').value || "";
-            let newHabit = { id, name, reward:r, penalty:p, tagId: tag, type: recurMode, isMulti: isMulti, rewardMin: rewardMin, description: desc };
-            if (recurMode === 'recur') newHabit.frequency = parseInt(freq); else newHabit.targetDate = targetDate; 
+            const r = parseInt(document.getElementById('newReward').value) || 0; 
+            const p = parseInt(document.getElementById('newPenalty').value) || 0; 
+            const freq = document.getElementById('newFrequency').value || 1; 
+            const targetDate = document.getElementById('newTargetDate').value; 
+            const isMulti = document.getElementById('newIsMulti').checked; 
+            const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; 
+            const desc = document.getElementById('newDesc').value || "";
+            
+            // V14: Gestione IF
+            let finalPenalty = p;
+            let finalFreq = freq;
+            if(recurMode === 'if') {
+                finalPenalty = 0; // Penalità zero forzata
+                finalFreq = 1;    // Frequenza giornaliera (virtuale)
+            }
+
+            let newHabit = { 
+                id, name, 
+                reward:r, 
+                penalty: finalPenalty, 
+                tagId: tag, type: recurMode, 
+                isMulti: isMulti, rewardMin: rewardMin, description: desc 
+            };
+
+            if (recurMode === 'recur') newHabit.frequency = parseInt(finalFreq); 
+            else if (recurMode === 'single') newHabit.targetDate = targetDate;
+            // Se mode è 'if', non serve frequency né targetDate nel DB (è implicito)
+            
             await updateDoc(ref, { habits: arrayUnion(newHabit) });
         } else { const c = document.getElementById('newCost').value || 0; await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c, tagId: tag}) }); }
         document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
@@ -731,119 +767,17 @@ function calculateStreak(habitId) {
     return streak;
 }
 
-window.openTagManager = () => { 
-    editingTagIndex = null; 
-    document.getElementById('newTagName').value = ''; 
-    document.getElementById('btnSaveTag').innerText = "Crea Tag"; 
-    renderTagsList(); 
-    document.getElementById('tagModal').style.display = 'flex'; 
-}
-
-function renderTagsList() { 
-    const list = document.getElementById('tagsList'); 
-    list.innerHTML = ''; 
-    (globalData.tags || []).forEach((t, idx) => { 
-        list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; 
-    }); 
-}
-
-window.editTag = (idx) => { 
-    const t = globalData.tags[idx]; 
-    document.getElementById('newTagName').value = t.name; 
-    document.getElementById('newTagColor').value = t.color; 
-    editingTagIndex = idx; 
-    document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; 
-}
-
-window.saveTagManager = async () => { 
-    const name = document.getElementById('newTagName').value; 
-    const color = document.getElementById('newTagColor').value; 
-    if(!name) return; 
-    let tags = globalData.tags || []; 
-    if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } 
-    else { tags.push({ id: Date.now().toString(), name, color }); } 
-    const ref = doc(db, "users", currentUser); 
-    await updateDoc(ref, { tags: tags }); 
-    document.getElementById('newTagName').value = ''; editingTagIndex = null; 
-    document.getElementById('btnSaveTag').innerText = "Crea Tag"; 
-    renderTagsList(); 
-    showToast("Tag salvato", "🏷️"); 
-}
-
-window.deleteTag = async (idx) => { 
-    if(!confirm("Eliminare tag?")) return; 
-    const tags = globalData.tags; 
-    tags.splice(idx, 1); 
-    await updateDoc(doc(db, "users", currentUser), { tags }); 
-    renderTagsList(); 
-}
-
-window.archiveFromEdit = () => { 
-    if(!editingItem) return; 
-    archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); 
-    document.getElementById('editModal').style.display = 'none'; 
-}
-
-window.archiveItem = (list, id) => { 
-    pendingArchiveId = { list, id }; 
-    document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; 
-    document.getElementById('archiveModal').style.display = 'flex'; 
-}
-
-window.confirmArchive = async () => { 
-    if(!pendingArchiveId) return; 
-    const date = document.getElementById('archiveDate').value; 
-    const { list, id } = pendingArchiveId; 
-    const ref = doc(db, "users", currentUser); 
-    const arr = globalData[list]; 
-    const idx = arr.findIndex(i => i.id === id); 
-    if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } 
-    document.getElementById('archiveModal').style.display = 'none'; 
-}
-
-window.exportData = async () => { 
-    vibrate('light'); 
-    showToast("Backup...", "⏳"); 
-    try { 
-        const usersCol = collection(db, 'users'); 
-        const userSnapshot = await getDocs(usersCol); 
-        let backupData = {}; 
-        userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); 
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); 
-        const downloadAnchorNode = document.createElement('a'); 
-        downloadAnchorNode.setAttribute("href", dataStr); 
-        const date = new Date().toISOString().slice(0,10); 
-        downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); 
-        document.body.appendChild(downloadAnchorNode); 
-        downloadAnchorNode.click(); 
-        downloadAnchorNode.remove(); 
-        showToast("Fatto!", "✅"); 
-    } catch (e) { console.error(e); showToast("Errore", "❌"); } 
-};
-
-window.importData = (files) => { 
-    if (files.length === 0) return; 
-    const file = files[0]; 
-    const reader = new FileReader(); 
-    reader.onload = async (e) => { 
-        try { 
-            const backupData = JSON.parse(e.target.result); 
-            if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } 
-            showToast("Ripristino...", "⏳"); 
-            for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } 
-            showToast("Fatto!", "✅"); 
-            setTimeout(() => location.reload(), 1500); 
-        } catch (err) { console.error(err); showToast("File non valido", "❌"); } 
-        document.getElementById('importFile').value = ''; 
-    }; 
-    reader.readAsText(file); 
-};
-
-window.hardReset = async () => { 
-    const code = prompt("Scrivi RESET:"); 
-    if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } 
-};
-
+window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
+function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
+window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
+window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
+window.deleteTag = async (idx) => { if(!confirm("Eliminare tag?")) return; const tags = globalData.tags; tags.splice(idx, 1); await updateDoc(doc(db, "users", currentUser), { tags }); renderTagsList(); }
+window.archiveFromEdit = () => { if(!editingItem) return; archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); document.getElementById('editModal').style.display = 'none'; }
+window.archiveItem = (list, id) => { pendingArchiveId = { list, id }; document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; document.getElementById('archiveModal').style.display = 'flex'; }
+window.confirmArchive = async () => { if(!pendingArchiveId) return; const date = document.getElementById('archiveDate').value; const { list, id } = pendingArchiveId; const ref = doc(db, "users", currentUser); const arr = globalData[list]; const idx = arr.findIndex(i => i.id === id); if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } document.getElementById('archiveModal').style.display = 'none'; }
+window.exportData = async () => { vibrate('light'); showToast("Backup...", "⏳"); try { const usersCol = collection(db, 'users'); const userSnapshot = await getDocs(usersCol); let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); const date = new Date().toISOString().slice(0,10); downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Fatto!", "✅"); } catch (e) { console.error(e); showToast("Errore", "❌"); } };
+window.importData = (files) => { if (files.length === 0) return; const file = files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const backupData = JSON.parse(e.target.result); if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } showToast("Ripristino...", "⏳"); for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500); } catch (err) { console.error(err); showToast("File non valido", "❌"); } document.getElementById('importFile').value = ''; }; reader.readAsText(file); };
+window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
 function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
 window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
 async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
