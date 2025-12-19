@@ -1,799 +1,917 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  runTransaction
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const APP_VERSION = "14.6";
+import { getFirestore, doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, arrayUnion, collection, getDocs } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA001klzJou17djB76Q-t2eRTKbU9NZoQs",
-  authDomain: "gamification-life-project.firebaseapp.com",
-  projectId: "gamification-life-project",
-  storageBucket: "gamification-life-project.firebasestorage.app",
-  messagingSenderId: "925252547674",
-  appId: "1:925252547674:web:1316a5d96cb54c0a515463"
+    apiKey: "AIzaSyA001klzJou17djB76Q-t2eRTKbU9NZoQs",
+    authDomain: "gamification-life-project.firebaseapp.com",
+    projectId: "gamification-life-project",
+    storageBucket: "gamification-life-project.firebasestorage.app",
+    messagingSenderId: "925252547674",
+    appId: "1:925252547674:web:1316a5d96cb54c0a515463"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// --- VARIABILI GLOBALI ---
 let currentUser = localStorage.getItem('glp_user') || 'flavio';
 let globalData = null;
 let allUsersData = { flavio: null, simona: null };
 let viewDate = new Date();
+const APP_VERSION = '14.7'; 
+let chartInstance = null;
 
-let addType = 'habit';
+// ===== Performance (V14.7): batch render/chart updates =====
+let _renderRaf = null;
+function scheduleRenderView(){
+    if(_renderRaf) return;
+    _renderRaf = requestAnimationFrame(() => {
+        _renderRaf = null;
+        if(globalData) renderView();
+    });
+}
+
+let _chartRaf = null;
+function scheduleChartUpdate(){
+    if(_chartRaf) return;
+    _chartRaf = requestAnimationFrame(() => {
+        _chartRaf = null;
+        updateMultiChart();
+    });
+}
+
+const _pendingActions = new Set();
+
+let detailedChartInstance = null;
+let pieChartInstance = null;
+let pendingArchiveId = null;
+let editingTagIndex = null;
+let currentNoteUnsubscribe = null;
+let noteDebounceTimer = null;
+let editingItem = null; 
+let editingType = null;
+let addType = 'habit'; 
 let recurMode = 'recur';
 
-let multiChart = null;
+// ==========================================
+// SEZIONE 1: HELPERS & UTILITIES
+// ==========================================
 
-// ---------- UI HELPERS ----------
-window.vibrate = (type) => {
-  if (!navigator.vibrate) return;
-  if (type === 'light') navigator.vibrate(30);
-  if (type === 'heavy') navigator.vibrate([50, 50]);
-};
-
-window.showToast = (msg, icon) => {
-  const t = document.getElementById('toast');
-  document.getElementById('toast-text').innerText = msg;
-  document.getElementById('toast-icon').innerText = icon || "ℹ️";
-  t.className = "show";
-  setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500);
-};
-
-function getDateString(date) {
-  return date.toISOString().split('T')[0];
-}
-
-function setOfflineBadge() {
-  if (navigator.onLine) document.body.classList.remove('offline');
-  else document.body.classList.add('offline');
-}
-window.addEventListener('online', setOfflineBadge);
-window.addEventListener('offline', setOfflineBadge);
-setOfflineBadge();
-
-function applyTheme(userId) {
-  const root = document.documentElement;
-  if (userId === 'simona') {
-    root.style.setProperty('--theme-color', '#d05ce3');
-    root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.28)');
-    document.getElementById('avatar-initial').innerText = 'S';
-    document.getElementById('username-display').innerText = 'Simona';
-  } else {
-    root.style.setProperty('--theme-color', '#ffca28');
-    root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)');
-    document.getElementById('avatar-initial').innerText = 'F';
-    document.getElementById('username-display').innerText = 'Flavio';
-  }
-  document.getElementById('card-flavio').classList.toggle('active', userId === 'flavio');
-  document.getElementById('card-simona').classList.toggle('active', userId === 'simona');
-}
-
-window.closeModal = (id) => {
-  const el = document.getElementById(id);
-  if (el) el.style.display = 'none';
-};
-
-// Force update: unregister SW + clear caches + reload
-window.forceReload = async () => {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
+window.getItemValueAtDate = (item, field, dateStr) => {
+    if (!item.changes || item.changes.length === 0) {
+        if(field === 'isMulti') return item.isMulti || false;
+        if(field === 'description') return item.description || "";
+        return parseInt(item[field] || 0);
     }
-    if (window.caches) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
+    const sortedChanges = item.changes.slice().sort((a, b) => a.date.localeCompare(b.date));
+    let validChange = null;
+    for (let change of sortedChanges) {
+        if (change.date <= dateStr) validChange = change; else break;
     }
-  } catch (e) {
-    console.warn(e);
-  }
-  location.reload(true);
+    if (validChange) {
+        if(field === 'isMulti') return validChange.isMulti || false;
+        if(field === 'description') return validChange.description || "";
+        return parseInt(validChange[field] || 0);
+    }
+    if(sortedChanges.length > 0) {
+         if(field === 'isMulti') return sortedChanges[0].isMulti || false;
+         if(field === 'description') return sortedChanges[0].description || "";
+         return parseInt(sortedChanges[0][field] || 0);
+    }
+    return 0;
 };
 
-// ---------- INIT ----------
+function countRewardPurchases(rewardName) {
+    if (!globalData || !globalData.dailyLogs) return 0;
+    let count = 0;
+    Object.values(globalData.dailyLogs).forEach(log => {
+        let purchases = Array.isArray(log) ? [] : (log.purchases || []);
+        purchases.forEach(p => { if (p.name === rewardName) count++; });
+    });
+    return count;
+}
+
+window.toggleInputs = () => {}; 
+
+let touchStartX = 0; let touchEndX = 0;
+document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
+document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
+function handleSwipe() {
+    if (touchEndX < touchStartX - 50) { changeDate(1); vibrate('light'); } 
+    if (touchEndX > touchStartX + 50) { changeDate(-1); vibrate('light'); } 
+}
+
+window.addEventListener('online', () => document.body.classList.remove('offline'));
+window.addEventListener('offline', () => document.body.classList.add('offline'));
+window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
+window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
+
+// ==========================================
+// SEZIONE 2: INIT & FIREBASE
+// ==========================================
+
 applyTheme(currentUser);
 initApp();
 
 async function initApp() {
-  await checkAndCreateUser('flavio');
-  await checkAndCreateUser('simona');
-  startListeners();
+    await checkAndCreateUser('flavio');
+    await checkAndCreateUser('simona');
+    startListeners();
 }
 
 async function checkAndCreateUser(user) {
-  const ref = doc(db, "users", user);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      score: 0,
-      habits: [],
-      rewards: [],
-      dailyLogs: {},
-      tags: [],
-      history: [],
-      lastLogin: new Date().toDateString()
-    });
-  }
+    const ref = doc(db, "users", user);
+    try {
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+            await setDoc(ref, { score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, tags: [], lastLogin: new Date().toDateString() });
+        }
+    } catch (e) { console.error("Err init:", e); }
 }
 
 function startListeners() {
-  ['flavio', 'simona'].forEach(u => {
-    onSnapshot(doc(db, "users", u), (d) => {
-      if (!d.exists()) return;
-      const userData = d.data();
-      allUsersData[u] = userData;
-      document.getElementById(`score-${u}`).innerText = userData.score ?? 0;
-      if (u === currentUser) {
-        globalData = userData;
-        renderView();
-      }
-      updateMultiChart();
-    }, (err) => {
-      console.error("Firestore listener error:", err);
-      showToast("Errore Firestore", "⚠️");
+    ['flavio', 'simona'].forEach(u => {
+        onSnapshot(doc(db, "users", u), (d) => {
+            if(d.exists()) {
+                const userData = d.data();
+                allUsersData[u] = userData;
+                document.getElementById(`score-${u}`).innerText = userData.score;
+                if(u === currentUser) { globalData = userData; scheduleRenderView(); }
+                scheduleChartUpdate();
+            }
+        });
     });
-  });
 }
 
-// ---------- DATE NAV ----------
-window.changeDate = (days) => {
-  viewDate.setDate(viewDate.getDate() + days);
-  renderView();
-};
-window.goToDate = (dateStr) => {
-  if (!dateStr) return;
-  viewDate = new Date(dateStr);
-  renderView();
-};
+// ==========================================
+// SEZIONE 3: CORE LOGIC (RENDER & STATUS)
+// ==========================================
 
-// ---------- NOTES (simple, stored in dailyLogs[date].note) ----------
-let noteDebounceTimer = null;
-window.handleNoteInput = (val) => {
-  if (!globalData) return;
-  const dateStr = getDateString(viewDate);
-  document.getElementById('noteStatus').innerText = "Salvataggio...";
-  clearTimeout(noteDebounceTimer);
-  noteDebounceTimer = setTimeout(() => saveNote(dateStr, val), 500);
-};
+window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); scheduleChartUpdate(); }
+window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); scheduleRenderView(); scheduleChartUpdate(); } }
+function getDateString(date) { return date.toISOString().split('T')[0]; }
 
-async function saveNote(dateStr, note) {
-  await mutateCurrentUserDoc((data) => {
-    const dailyLogs = data.dailyLogs || {};
-    const entry = normalizeEntry(dailyLogs[dateStr]);
-    entry.note = note || "";
-    dailyLogs[dateStr] = entry;
-    data.dailyLogs = dailyLogs;
-  });
-  document.getElementById('noteStatus').innerText = "";
-}
-
-function normalizeEntry(raw) {
-  if (Array.isArray(raw)) {
-    return { habits: raw.slice(), failedHabits: [], purchases: [], habitLevels: {}, note: "" };
-  }
-  if (!raw) return { habits: [], failedHabits: [], purchases: [], habitLevels: {}, note: "" };
-  return {
-    habits: Array.isArray(raw.habits) ? raw.habits.slice() : [],
-    failedHabits: Array.isArray(raw.failedHabits) ? raw.failedHabits.slice() : [],
-    purchases: Array.isArray(raw.purchases) ? raw.purchases.slice() : [],
-    habitLevels: raw.habitLevels ? { ...raw.habitLevels } : {},
-    note: raw.note || ""
-  };
-}
-
-function getStableId(item) {
-  return item.id || (item.name || "").replace(/[^a-zA-Z0-9]/g, '');
-}
-
-function getHabitReward(h, dateStr, level) {
-  const max = parseInt(h.reward || 0);
-  const min = parseInt(h.rewardMin || 0);
-  if (h.isMulti && level === 'min') return min;
-  return max;
-}
-
-function safeNum(v) {
-  const n = parseInt(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-// ---------- RENDER ----------
 function renderView() {
-  if (!globalData) return;
+    if(!globalData) return;
+    const todayStr = getDateString(new Date());
+    const viewStr = getDateString(viewDate);
+    
+    const displayEl = document.getElementById('dateDisplay');
+    let isToday = (viewStr === todayStr);
+    if (isToday) displayEl.innerText = "OGGI";
+    else if (viewStr === getDateString(new Date(Date.now() - 86400000))) displayEl.innerText = "IERI";
+    else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
+    
+    document.getElementById('datePicker').value = viewStr;
+    setupNoteListener(viewStr);
 
-  const todayStr = getDateString(new Date());
-  const viewStr = getDateString(viewDate);
-  const displayEl = document.getElementById('dateDisplay');
+    const dailyLogs = globalData.dailyLogs || {};
+    const entry = dailyLogs[viewStr] || {};
+    
+    let doneHabits = Array.isArray(entry) ? entry : (entry.habits || []);
+    const failedHabits = entry.failedHabits || [];
+    const habitLevels = entry.habitLevels || {}; 
+    const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
-  const isToday = (viewStr === todayStr);
-  if (isToday) displayEl.innerText = "OGGI";
-  else {
-    const yesterdayStr = getDateString(new Date(Date.now() - 86400000));
-    if (viewStr === yesterdayStr) displayEl.innerText = "IERI";
-    else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth() + 1}`;
-  }
+    const hList = document.getElementById('habitList');
+    const ifList = document.getElementById('ifList');
+    
+    // Performance optimization: Build strings first
+    let hListHtml = '';
+    let ifListHtml = '';
+    
+    let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
+    let visibleCount = 0; let ifCount = 0;
 
-  document.getElementById('datePicker').value = viewStr;
+    const tagsMap = {};
+    (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
 
-  const dailyLogs = globalData.dailyLogs || {};
-  const entry = normalizeEntry(dailyLogs[viewStr]);
+    (globalData.habits || []).forEach((h) => {
+        const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+        
+        if (h.archivedAt && viewStr >= h.archivedAt) return;
+        if (h.type === 'single' && h.targetDate !== viewStr) return;
 
-  document.getElementById('dailyNoteArea').value = entry.note || "";
-  document.getElementById('noteStatus').innerText = "";
+        const isDone = doneHabits.includes(stableId);
+        const isFailed = failedHabits.includes(stableId);
+        const freq = h.frequency || 1; 
+        
+        const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
+        const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
+        const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
+        const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
+        const description = window.getItemValueAtDate(h, 'description', viewStr);
 
-  const doneHabits = entry.habits || [];
-  const failedHabits = entry.failedHabits || [];
-  const habitLevels = entry.habitLevels || {};
-  const todaysPurchases = entry.purchases || [];
+        let isIfHabit = (h.type === 'if');
 
-  const habits = Array.isArray(globalData.habits) ? globalData.habits : [];
-  const rewards = Array.isArray(globalData.rewards) ? globalData.rewards : [];
+        let shouldShow = true;
+        let daysLeft = 0;
+        
+        if (!isIfHabit && h.type !== 'single' && freq > 1) {
+            if (isDone || isFailed) { shouldShow = true; } else {
+                if (h.lastDone) {
+                    const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
+                    if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; }
+                }
+            }
+        }
 
-  // Build HTML strings (fast)
-  let hHtml = '';
-  let ifHtml = '';
+        if (shouldShow) {
+            if (!isIfHabit) { visibleCount++; dailyTotalPot += currentReward; } 
+            else { ifCount++; }
+            
+            if(isDone) {
+                let level = habitLevels[stableId] || 'max'; 
+                if (isMulti && level === 'min') dailyEarned += currentRewardMin;
+                else dailyEarned += currentReward;
+            }
+            if(isFailed) dailySpent += currentPenalty; 
 
-  let dailyEarned = 0;
-  let dailySpent = 0;
-  let visibleCount = 0;
+            const tagObj = tagsMap[h.tagId];
+            const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+            const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+            
+            let streakHtml = '';
+            if (isToday && !isIfHabit) {
+                const s = calculateStreak(stableId);
+                if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
+            }
 
-  for (const h of habits) {
-    const id = getStableId(h);
-    const type = h.type || 'recur';
-    if (h.archivedAt && viewStr >= h.archivedAt) continue;
-    if (type === 'single' && h.targetDate && h.targetDate !== viewStr) continue;
+            let btnClass = ''; let btnIcon = 'check'; let btnText = '';
+            if (isDone) {
+                let level = habitLevels[stableId] || 'max';
+                if (isMulti && level === 'min') { btnClass = 'min active'; btnText = 'MIN'; btnIcon = ''; } 
+                else { btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; }
+            }
 
-    const isIf = (type === 'if');
-    const isDone = doneHabits.includes(id);
-    const isFailed = failedHabits.includes(id);
-    const level = habitLevels[id] || 'max';
-    const isMulti = !!h.isMulti;
-    const rewardMax = safeNum(h.reward);
-    const rewardMin = safeNum(h.rewardMin);
-    const penalty = safeNum(h.penalty);
+            let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
+            let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
+            
+            const failBtn = isIfHabit 
+                ? '' 
+                : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
 
-    if (isDone) {
-      dailyEarned += getHabitReward(h, viewStr, isMulti ? level : 'max');
-    }
-    if (isFailed) {
-      dailySpent += penalty;
-    }
+            const itemHtml = `
+                <div class="item ${statusClass}" style="${borderStyle}">
+                    <div>
+                        <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
+                        ${descHtml}
+                        <div class="vals">
+                            <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> ${isIfHabit ? '' : `/ <span class="val-badge minus">-${currentPenalty}</span>`}
+                        </div>
+                    </div>
+                    <div class="actions-group">
+                        <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                        ${failBtn}
+                        <button class="btn-status done ${btnClass}" onclick="setHabitStatus('${stableId}', 'next', 0)">
+                             ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
+                        </button>
+                    </div>
+                </div>`;
+            
+            if(isIfHabit) ifListHtml += itemHtml;
+            else hListHtml += itemHtml;
+        } 
+    });
+    
+    // Write HTML only once (Performance Fix)
+    if(visibleCount === 0) hListHtml = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
+    hList.innerHTML = hListHtml;
 
-    const desc = h.description ? `<div class="item-sub">${h.description}</div>` : '';
-    const pill = isMulti ? `<span class="item-sub">Max:+${rewardMax} | Min:+${rewardMin} | Fail:-${penalty}</span>` : `<span class="item-sub">+${rewardMax} | Fail:-${penalty}</span>`;
-
-    const btnMaxClass = isDone && (!isMulti || level === 'max') ? 'active' : '';
-    const btnMinClass = isDone && isMulti && level === 'min' ? 'min active' : (isMulti ? 'min' : '');
-    const btnFailClass = isFailed ? 'active' : '';
-
-    const buttons = `
-      <button class="btn-status done ${btnMaxClass}" onclick="toggleHabit('${id}','max')">MAX</button>
-      ${isMulti ? `<button class="btn-status done ${btnMinClass}" onclick="toggleHabit('${id}','min')">MIN</button>` : ''}
-      <button class="btn-status failed ${btnFailClass}" onclick="toggleHabit('${id}','fail')">FAIL</button>
-    `;
-
-    const row = `
-      <div class="item">
-        <div class="item-left">
-          <div class="item-title">${h.name || 'Abitudine'}</div>
-          ${desc}
-          <div class="item-sub">${pill}</div>
-        </div>
-        <div class="item-right">
-          ${buttons}
-        </div>
-      </div>
-    `;
-
-    if (isIf) ifHtml += row;
+    if(ifCount === 0) ifListHtml = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
+    ifList.innerHTML = ifListHtml;
+    
+    // Acquisti
+    let purchaseCost = 0;
+    const pList = document.getElementById('purchasedList'); 
+    let pListHtml = '';
+    
+    if(todaysPurchases.length === 0) { pListHtml = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
     else {
-      hHtml += row;
-      visibleCount++;
+        todaysPurchases.forEach((p, idx) => {
+            purchaseCost += parseInt(p.cost);
+            pListHtml += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
+        });
     }
-  }
+    pList.innerHTML = pListHtml;
+    
+    dailySpent += purchaseCost;
+    const net = dailyEarned - dailySpent;
+    document.getElementById('sum-earn').innerText = `+${dailyEarned}`;
+    document.getElementById('sum-spent').innerText = `-${dailySpent}`;
+    
+    const netEl = document.getElementById('sum-net');
+    netEl.innerText = (net > 0 ? '+' : '') + net;
+    netEl.className = 'sum-val'; 
+    if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
 
-  document.getElementById('habitList').innerHTML = hHtml || `<div class="empty">Nessuna abitudine.</div>`;
-  document.getElementById('ifList').innerHTML = ifHtml || `<div class="empty">Nessuna abitudine If.</div>`;
+    updateProgressCircle(dailyEarned, dailyTotalPot);
 
-  // Purchases
-  if (!todaysPurchases.length) {
-    document.getElementById('purchasedList').innerHTML = `<div class="empty">Nessun acquisto oggi</div>`;
-  } else {
-    document.getElementById('purchasedList').innerHTML = todaysPurchases.map((p, i) => {
-      dailySpent += safeNum(p.cost);
-      const dt = p.ts ? new Date(p.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
-      return `
-        <div class="item">
-          <div class="item-left">
-            <div class="item-title">${p.name || 'Acquisto'}</div>
-            <div class="item-sub">${dt}</div>
-          </div>
-          <div class="item-right">
-            <span class="shop-price">-${safeNum(p.cost)}</span>
-            <button class="btn-status" onclick="refundPurchase('${viewStr}',${i})">UNDO</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+    // REWARD SHOP RENDER
+    const sList = document.getElementById('shopList');
+    let sListHtml = '';
+    (globalData.rewards || []).forEach((r) => {
+        if (r.archivedAt && viewStr >= r.archivedAt) return;
+        const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+        const tagObj = tagsMap[r.tagId];
+        const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+        const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+        const count = countRewardPurchases(r.name);
+        const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
 
-  // Shop (render ALWAYS, so accordion won't be empty)
-  const shopHtml = rewards.map(r => {
-    const id = getStableId(r);
-    const cost = safeNum(r.cost);
-    const count = countRewardPurchases(id);
-    return `
-      <div class="item">
-        <div class="item-left">
-          <div class="item-title">${r.name || 'Premio'}</div>
-          <div class="item-sub"><span class="shop-price">-${cost}</span> <span class="shop-count">Acquisti: ${count}</span></div>
-        </div>
-        <div class="item-right">
-          <button class="btn-status done active" onclick="buyReward('${id}')">BUY</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-  document.getElementById('shopList').innerHTML = shopHtml || `<div class="empty">Nessun premio.</div>`;
-
-  // Summary + progress circle
-  document.getElementById('sum-earn').innerText = dailyEarned;
-  document.getElementById('sum-spent').innerText = dailySpent;
-  const net = dailyEarned - dailySpent;
-  const netEl = document.getElementById('sum-net');
-  netEl.innerText = net;
-  netEl.className = 'sum-val ' + (net > 0 ? 'net-pos' : (net < 0 ? 'net-neg' : 'net-warn'));
-
-  const pot = Math.max(dailyEarned + dailySpent, 0);
-  const pct = pot === 0 ? 0 : Math.round((dailyEarned / pot) * 100);
-  updateProgressCircle(pct);
-}
-
-function updateProgressCircle(pct) {
-  const circle = document.getElementById('prog-circle');
-  const text = document.getElementById('prog-text');
-  const total = 263;
-  const offset = total - (pct / 100) * total;
-  circle.style.strokeDashoffset = String(offset);
-  text.innerText = `${pct}%`;
-}
-
-function countRewardPurchases(rewardId) {
-  if (!globalData || !globalData.dailyLogs) return 0;
-  let count = 0;
-  Object.entries(globalData.dailyLogs).forEach(([date, raw]) => {
-    const entry = normalizeEntry(raw);
-    entry.purchases.forEach(p => {
-      const id = p.rewardId || (p.name || "").replace(/[^a-zA-Z0-9]/g,'');
-      if (id === rewardId) count++;
+        sListHtml += `
+            <div class="item" style="${borderStyle}">
+                <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
+                <div class="actions-group">
+                        <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                        <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                </div>
+            </div>`;
     });
-  });
-  return count;
+    // Se vuoto o se ci sono dati, scriviamo tutto in un colpo solo
+    if(sListHtml === '') sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
+    sList.innerHTML = sListHtml;
 }
 
-// ---------- CHART ----------
-function updateMultiChart() {
-  const ctx = document.getElementById('multiChart');
-  if (!ctx) return;
+window.setHabitStatus = async (habitId, action, value) => {
+    const dateStr = getDateString(viewDate);
+    const _key = `habit|${dateStr}|${habitId}|${action}|${value||''}`;
+    if (_pendingActions.has(_key)) return;
+    _pendingActions.add(_key);
+    try {
+    const ref = doc(db, "users", currentUser);
+    let dailyLogs = globalData.dailyLogs || {};
+    let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], habitLevels: {}, purchases: [] };
+    
+    if (Array.isArray(entry)) entry = { habits: entry, failedHabits: [], habitLevels: {}, purchases: [] };
+    if (!entry.failedHabits) entry.failedHabits = [];
+    if (!entry.habits) entry.habits = [];
+    if (!entry.habitLevels) entry.habitLevels = {};
 
-  const points = buildLastNDays(14);
-  const labels = points.map(p => p.label);
-  const dataF = points.map(p => p.flavio);
-  const dataS = points.map(p => p.simona);
+    let currentHabits = entry.habits;
+    let currentFailed = entry.failedHabits;
+    let currentLevels = entry.habitLevels;
+    
+    let habitsArr = globalData.habits;
+    let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
+    const habitObj = habitsArr[habitIndex];
+    
+    const isMulti = window.getItemValueAtDate(habitObj, 'isMulti', dateStr);
+    const rewardMax = window.getItemValueAtDate(habitObj, 'reward', dateStr);
+    const rewardMin = window.getItemValueAtDate(habitObj, 'rewardMin', dateStr);
+    const penalty = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
 
-  if (multiChart) {
-    multiChart.data.labels = labels;
-    multiChart.data.datasets[0].data = dataF;
-    multiChart.data.datasets[1].data = dataS;
-    multiChart.update('none');
-    return;
-  }
+    const wasDone = currentHabits.includes(habitId);
+    const wasLevel = currentLevels[habitId] || 'max';
 
-  multiChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Flavio', data: dataF, tension: 0.35 },
-        { label: 'Simona', data: dataS, tension: 0.35 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true }
-      },
-      scales: {
-        x: { ticks: { maxTicksLimit: 7 } },
-        y: { beginAtZero: false }
-      }
+    if (wasDone) {
+        if (isMulti && wasLevel === 'min') globalData.score -= rewardMin;
+        else globalData.score -= rewardMax;
+        currentHabits = currentHabits.filter(id => id !== habitId);
+        delete currentLevels[habitId];
     }
-  });
-}
+    if (currentFailed.includes(habitId)) {
+        globalData.score += penalty;
+        currentFailed = currentFailed.filter(id => id !== habitId);
+    }
 
-function buildLastNDays(n) {
-  const out = [];
-  const start = new Date();
-  start.setDate(start.getDate() - (n - 1));
-  for (let i = 0; i < n; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const key = getDateString(d);
-    out.push({
-      key,
-      label: `${d.getDate()}/${d.getMonth()+1}`,
-      flavio: allUsersData.flavio?.score ?? 0,
-      simona: allUsersData.simona?.score ?? 0
-    });
-  }
-  return out;
-}
-
-// ---------- MUTATIONS (TRANSACTION) ----------
-async function mutateCurrentUserDoc(mutator) {
-  const ref = doc(db, "users", currentUser);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const data = snap.exists() ? snap.data() : {};
-    // Make a shallow clone to mutate safely
-    const next = {
-      ...data,
-      habits: Array.isArray(data.habits) ? data.habits.slice() : [],
-      rewards: Array.isArray(data.rewards) ? data.rewards.slice() : [],
-      dailyLogs: data.dailyLogs ? { ...data.dailyLogs } : {},
-      tags: Array.isArray(data.tags) ? data.tags.slice() : [],
-      history: Array.isArray(data.history) ? data.history.slice() : [],
-      score: safeNum(data.score)
-    };
-    mutator(next);
-    tx.set(ref, next, { merge: true });
-  });
-}
-
-// ---------- ACTIONS ----------
-const inFlight = new Set();
-
-window.toggleHabit = async (habitId, mode) => {
-  if (!globalData) return;
-  const dateStr = getDateString(viewDate);
-  const key = `${currentUser}:${dateStr}:${habitId}:${mode}`;
-  if (inFlight.has(key)) return;
-  inFlight.add(key);
-
-  try {
-    // Optimistic UI: update local data first
-    applyLocalToggleHabit(habitId, mode, dateStr);
-    renderView();
-
-    await mutateCurrentUserDoc((data) => {
-      const dailyLogs = data.dailyLogs || {};
-      const entry = normalizeEntry(dailyLogs[dateStr]);
-
-      const habits = Array.isArray(data.habits) ? data.habits : [];
-      const h = habits.find(x => getStableId(x) === habitId);
-      if (!h) return;
-
-      const isMulti = !!h.isMulti;
-      const rewardMax = safeNum(h.reward);
-      const rewardMin = safeNum(h.rewardMin);
-      const penalty = safeNum(h.penalty);
-
-      const done = new Set(entry.habits);
-      const failed = new Set(entry.failedHabits);
-      const levels = entry.habitLevels || {};
-
-      const wasDone = done.has(habitId);
-      const wasFailed = failed.has(habitId);
-      const prevLevel = levels[habitId] || 'max';
-
-      let delta = 0;
-
-      if (mode === 'max') {
-        if (wasDone && (!isMulti || prevLevel === 'max')) {
-          // uncheck
-          done.delete(habitId);
-          delete levels[habitId];
-          delta -= rewardMax;
+    let actionType = 'neutral';
+    if (action === 'failed') {
+        currentFailed.push(habitId);
+        globalData.score -= penalty;
+        actionType = 'failed';
+    } else if (action === 'next') {
+        if (!wasDone) {
+            currentHabits.push(habitId);
+            if (isMulti) { currentLevels[habitId] = 'min'; globalData.score += rewardMin; } 
+            else { currentLevels[habitId] = 'max'; globalData.score += rewardMax; actionType = 'done'; }
         } else {
-          // set done max
-          if (wasDone) {
-            // was min -> switch to max
-            delta += (rewardMax - rewardMin);
-          } else {
-            delta += rewardMax;
-          }
-          done.add(habitId);
-          if (isMulti) levels[habitId] = 'max';
-          // if it was failed, remove fail and refund penalty
-          if (wasFailed) {
-            failed.delete(habitId);
-            delta += penalty;
-          }
+            if (isMulti && wasLevel === 'min') {
+                currentHabits.push(habitId); currentLevels[habitId] = 'max'; globalData.score += rewardMax; actionType = 'done';
+            }
         }
-      }
+        if (habitIndex >= 0 && currentHabits.includes(habitId)) habitsArr[habitIndex].lastDone = dateStr; 
+    }
 
-      if (mode === 'min') {
-        if (!isMulti) return;
-        if (wasDone && prevLevel === 'min') {
-          // uncheck min
-          done.delete(habitId);
-          delete levels[habitId];
-          delta -= rewardMin;
-        } else {
-          // set done min
-          if (wasDone) {
-            // was max -> switch to min
-            delta -= (rewardMax - rewardMin);
-          } else {
-            delta += rewardMin;
-          }
-          done.add(habitId);
-          levels[habitId] = 'min';
-          if (wasFailed) {
-            failed.delete(habitId);
-            delta += penalty;
-          }
-        }
-      }
-
-      if (mode === 'fail') {
-        if (wasFailed) {
-          failed.delete(habitId);
-          delta += penalty;
-        } else {
-          failed.add(habitId);
-          delta -= penalty;
-          // if done, remove done and remove reward
-          if (wasDone) {
-            const reward = (isMulti && prevLevel === 'min') ? rewardMin : rewardMax;
-            done.delete(habitId);
-            delete levels[habitId];
-            delta -= reward;
-          }
-        }
-      }
-
-      entry.habits = Array.from(done);
-      entry.failedHabits = Array.from(failed);
-      entry.habitLevels = levels;
-
-      dailyLogs[dateStr] = entry;
-      data.dailyLogs = dailyLogs;
-
-      data.score = safeNum(data.score) + delta;
-    });
-
+    dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, habitLevels: currentLevels, purchases: entry.purchases || [] };
+    scheduleRenderView();
+    scheduleChartUpdate();
+    await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs });
+    logHistory(currentUser, globalData.score);
     vibrate('light');
-  } catch (e) {
-    console.error(e);
-    showToast("Errore salvataggio", "⚠️");
-  } finally {
-    inFlight.delete(key);
-  }
+    if(actionType === 'done') {
+        if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
+        showToast("Completata!", "✅");
+    } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
+
+    } catch (e) {
+        console.error("setHabitStatus error:", e);
+        showToast("Errore, riprova", "⚠️");
+    } finally {
+        _pendingActions.delete(_key);
+    }
 };
 
-function applyLocalToggleHabit(habitId, mode, dateStr) {
-  if (!globalData) return;
-  const dailyLogs = globalData.dailyLogs || {};
-  const entry = normalizeEntry(dailyLogs[dateStr]);
-  const done = new Set(entry.habits);
-  const failed = new Set(entry.failedHabits);
-  const levels = entry.habitLevels || {};
-
-  // Just update UI state; score will update after snapshot
-  if (mode === 'max') {
-    if (done.has(habitId) && (levels[habitId] || 'max') === 'max') {
-      done.delete(habitId);
-      delete levels[habitId];
+window.buyReward = async (name, cost) => {
+    if(globalData.score < cost) { 
+        if(!confirm(`Attenzione: Saldo insufficiente (${globalData.score}). Andrai in negativo. Continuare?`)) return;
     } else {
-      done.add(habitId);
-      levels[habitId] = 'max';
-      failed.delete(habitId);
+        if(!confirm(`Comprare ${name} per ${cost}?`)) return;
     }
-  }
-  if (mode === 'min') {
-    if (done.has(habitId) && (levels[habitId] || 'max') === 'min') {
-      done.delete(habitId);
-      delete levels[habitId];
-    } else {
-      done.add(habitId);
-      levels[habitId] = 'min';
-      failed.delete(habitId);
-    }
-  }
-  if (mode === 'fail') {
-    if (failed.has(habitId)) failed.delete(habitId);
-    else {
-      failed.add(habitId);
-      done.delete(habitId);
-      delete levels[habitId];
-    }
-  }
+    
+    const dateStr = getDateString(viewDate);
+    const ref = doc(db, "users", currentUser);
+    let entry = globalData.dailyLogs?.[dateStr] || {};
+    let currentPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
+    
+    currentPurchases.push({ name, cost, time: Date.now() });
+    let newScore = globalData.score - parseInt(cost);
+    let newEntry = { habits: entry.habits || [], failedHabits: entry.failedHabits || [], habitLevels: entry.habitLevels || {}, purchases: currentPurchases };
+    let dailyLogs = globalData.dailyLogs || {};
+    dailyLogs[dateStr] = newEntry;
+    
+    await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+    logHistory(currentUser, newScore);
+    vibrate('heavy'); confetti({ shapes: ['circle'], colors: ['#4caf50'] }); showToast("Acquisto effettuato!", "🛍️");
+};
 
-  entry.habits = Array.from(done);
-  entry.failedHabits = Array.from(failed);
-  entry.habitLevels = levels;
-  dailyLogs[dateStr] = entry;
-  globalData.dailyLogs = dailyLogs;
+window.refundPurchase = async (idx, cost) => {
+    if(!confirm("Annullare acquisto e rimborsare punti?")) return;
+    const dateStr = getDateString(viewDate);
+    const ref = doc(db, "users", currentUser);
+    let entry = globalData.dailyLogs[dateStr];
+    entry.purchases.splice(idx, 1);
+    let newScore = globalData.score + parseInt(cost);
+    await updateDoc(ref, { score: newScore, dailyLogs: globalData.dailyLogs });
+    logHistory(currentUser, newScore);
+    vibrate('light'); showToast("Rimborsato!", "↩️");
+};
+
+window.updateDetailedChart = (days) => {
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { console.log("Dati non pronti"); return; }
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(`filter${days}`).classList.add('active');
+    const ctx = document.getElementById('detailedChart').getContext('2d');
+    const labels = []; const dates = [];
+    for(let i=days-1; i>=0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const str = d.toISOString().split('T')[0];
+        dates.push(str); labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+    }
+    const getPoints = (userData) => {
+        if(!userData || !userData.dailyLogs) return new Array(days).fill(0);
+        return dates.map(date => {
+            const entry = userData.dailyLogs[date] || {};
+            let doneArr = Array.isArray(entry) ? entry : (entry.habits || []);
+            let failedArr = entry.failedHabits || [];
+            let levels = entry.habitLevels || {};
+            let purchases = entry.purchases || [];
+            let net = 0;
+            doneArr.forEach(hId => {
+                const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(h) {
+                    const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                    const rMax = window.getItemValueAtDate(h, 'reward', date);
+                    let lvl = levels[hId] || 'max';
+                    if (isM && lvl === 'min') net += rMin; else net += rMax;
+                }
+            });
+            failedArr.forEach(hId => {
+                const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(h) net -= window.getItemValueAtDate(h, 'penalty', date);
+            });
+            let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
+            return net - spent;
+        });
+    };
+    const flavioPoints = getPoints(allUsersData.flavio);
+    const simonaPoints = getPoints(allUsersData.simona);
+    if(detailedChartInstance) detailedChartInstance.destroy();
+    detailedChartInstance = new Chart(ctx, {
+        type: 'line', 
+        data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', borderWidth:2, pointRadius: 5 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', borderWidth:2, pointRadius: 5 } ] },
+        options: { 
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, 
+            scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' } } },
+            onClick: async (e, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const dateStr = dates[index];
+                    const niceDate = labels[index] + "/" + new Date().getFullYear();
+                    const fVal = flavioPoints[index];
+                    const sVal = simonaPoints[index];
+                    document.getElementById('nodeInfo').style.display = 'block';
+                    document.getElementById('nodeDate').innerText = niceDate;
+                    document.getElementById('nodeValFlavio').innerText = (fVal>0?'+':'')+fVal;
+                    document.getElementById('nodeValSimona').innerText = (sVal>0?'+':'')+sVal;
+                    document.getElementById('nodeNote').innerText = "Caricamento nota...";
+                    try {
+                        const snap = await getDoc(doc(db, "shared_notes", dateStr));
+                        if (snap.exists()) { document.getElementById('nodeNote').innerText = snap.data().text || "Nessuna nota scritta."; } 
+                        else { document.getElementById('nodeNote').innerText = "Nessuna nota scritta."; }
+                    } catch(err) { document.getElementById('nodeNote').innerText = "Errore caricamento nota."; }
+                }
+            }
+        }
+    });
 }
+window.openAnalytics = () => { if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
 
-window.buyReward = async (rewardId) => {
-  const dateStr = getDateString(viewDate);
-  const key = `${currentUser}:${dateStr}:buy:${rewardId}`;
-  if (inFlight.has(key)) return;
-  inFlight.add(key);
+window.openStats = () => {
+    if (!globalData || !globalData.dailyLogs) return;
+    let totalNet = 0; let daysCount = 0;
+    let maxNet = -Infinity; let bestDay = '-';
+    let minNet = Infinity; let worstDay = '-';
+    let habitCounts = {}; let rewardCounts = {};
+    let tagScores = {}; 
+    const tagsMap = {}; (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
+    let dowStats = {0:{sum:0, count:0}, 1:{sum:0, count:0}, 2:{sum:0, count:0}, 3:{sum:0, count:0}, 4:{sum:0, count:0}, 5:{sum:0, count:0}, 6:{sum:0, count:0}};
 
-  try {
-    await mutateCurrentUserDoc((data) => {
-      const rewards = Array.isArray(data.rewards) ? data.rewards : [];
-      const r = rewards.find(x => getStableId(x) === rewardId);
-      if (!r) return;
+    const dates = Object.keys(globalData.dailyLogs).sort();
+    dates.forEach(date => {
+        daysCount++;
+        const entry = globalData.dailyLogs[date];
+        let doneArr = [], failedArr = [], purchases = [];
+        let levels = entry.habitLevels || {};
+        if (Array.isArray(entry)) { doneArr = entry; } 
+        else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
 
-      const cost = safeNum(r.cost);
-      const dailyLogs = data.dailyLogs || {};
-      const entry = normalizeEntry(dailyLogs[dateStr]);
+        let dayEarn = 0; let daySpent = 0;
+        doneArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) {
+                habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+                const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                const rMax = window.getItemValueAtDate(h, 'reward', date);
+                let lvl = levels[hId] || 'max';
+                let points = (isM && lvl === 'min') ? rMin : rMax;
+                dayEarn += points;
+                const tId = h.tagId || 'uncategorized';
+                tagScores[tId] = (tagScores[tId] || 0) + points;
+            }
+        });
+        failedArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) daySpent += window.getItemValueAtDate(h, 'penalty', date);
+        });
+        purchases.forEach(p => { rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1; daySpent += parseInt(p.cost); });
 
-      entry.purchases.push({
-        rewardId,
-        name: r.name || 'Premio',
-        cost,
-        ts: Date.now()
-      });
-      dailyLogs[dateStr] = entry;
-      data.dailyLogs = dailyLogs;
-      data.score = safeNum(data.score) - cost;
+        let dayNet = dayEarn - daySpent;
+        totalNet += dayNet;
+        if (dayNet > maxNet) { maxNet = dayNet; bestDay = date; }
+        if (dayNet < minNet) { minNet = dayNet; worstDay = date; }
+        const dObj = new Date(date);
+        const dayOfWeek = dObj.getDay(); 
+        dowStats[dayOfWeek].sum += dayNet;
+        dowStats[dayOfWeek].count++;
     });
-    showToast("Acquisto registrato", "🛍️");
-    if (window.confetti) {
-      window.confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+
+    if(pieChartInstance) pieChartInstance.destroy();
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    let pieLabels = []; let pieData = []; let pieColors = [];
+    Object.keys(tagScores).forEach(tId => {
+        if(tId === 'uncategorized') { pieLabels.push('Senza Categoria'); pieColors.push('#666666'); } 
+        else { const tObj = tagsMap[tId]; if(tObj) { pieLabels.push(tObj.name); pieColors.push(tObj.color); } }
+        pieData.push(tagScores[tId]);
+    });
+
+    pieChartInstance = new Chart(pieCtx, {
+        type: 'doughnut',
+        data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    const daysName = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    let bestDow = -1; let maxDowAvg = -Infinity; let worstDow = -1; let minDowAvg = Infinity;
+    for(let i=0; i<7; i++) {
+        if(dowStats[i].count > 0) {
+            let avg = dowStats[i].sum / dowStats[i].count;
+            if(avg > maxDowAvg) { maxDowAvg = avg; bestDow = i; }
+            if(avg < minDowAvg) { minDowAvg = avg; worstDow = i; }
+        }
     }
-    vibrate('heavy');
-  } catch (e) {
-    console.error(e);
-    showToast("Errore acquisto", "⚠️");
-  } finally {
-    inFlight.delete(key);
-  }
-};
 
-window.refundPurchase = async (dateStr, idx) => {
-  const key = `${currentUser}:${dateStr}:refund:${idx}`;
-  if (inFlight.has(key)) return;
-  inFlight.add(key);
+    const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0;
+    let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-');
+    let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-');
 
-  try {
-    await mutateCurrentUserDoc((data) => {
-      const dailyLogs = data.dailyLogs || {};
-      const entry = normalizeEntry(dailyLogs[dateStr]);
-      if (!entry.purchases[idx]) return;
+    const html = `
+        <div class="stat-card"><span class="stat-val">${avg}</span><span class="stat-label">Media Netta</span></div>
+        <div class="stat-card"><span class="stat-val">${daysCount}</span><span class="stat-label">Giorni Attivi</span></div>
+        <div class="stat-card" style="border-color:var(--success)"><span class="stat-val" style="color:var(--success)">${bestDow>=0 ? daysName[bestDow] : '-'}</span><span class="stat-label">Giorno Top (Med: ${maxDowAvg.toFixed(0)})</span></div>
+        <div class="stat-card" style="border-color:var(--danger)"><span class="stat-val" style="color:var(--danger)">${worstDow>=0 ? daysName[worstDow] : '-'}</span><span class="stat-label">Giorno Flop (Med: ${minDowAvg.toFixed(0)})</span></div>
+        <div class="stat-card" style="border-color:var(--theme-color); opacity:0.8"><span class="stat-val" style="color:var(--theme-color); font-size:1em">+${maxNet === -Infinity ? 0 : maxNet} (${bestDay.split('-').reverse().join('/')})</span><span class="stat-label">Record Assoluto</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${bestHabit}</span><span class="stat-label">Abitudine Costante</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${favReward}</span><span class="stat-label">Premio Preferito</span></div>
+    `;
+    document.getElementById('statsContent').innerHTML = html;
+    document.getElementById('statsModal').style.display = 'flex';
+    } finally {
+        _pendingActions.delete(_key);
+    }
 
-      const p = entry.purchases[idx];
-      entry.purchases.splice(idx, 1);
-
-      dailyLogs[dateStr] = entry;
-      data.dailyLogs = dailyLogs;
-
-      data.score = safeNum(data.score) + safeNum(p.cost);
-    });
-    showToast("Rimborsato", "↩️");
-  } catch (e) {
-    console.error(e);
-    showToast("Errore rimborso", "⚠️");
-  } finally {
-    inFlight.delete(key);
-  }
-};
-
-// ---------- ADD MODAL ----------
-window.setAddType = (t) => {
-  addType = t;
-  document.getElementById('typeHabit').classList.toggle('active', t === 'habit');
-  document.getElementById('typeReward').classList.toggle('active', t === 'reward');
-  document.getElementById('habitInputs').style.display = (t === 'habit') ? 'block' : 'none';
-  document.getElementById('rewardInputs').style.display = (t === 'reward') ? 'block' : 'none';
-};
-
-window.setRecurMode = (m) => {
-  recurMode = m;
-  document.getElementById('modeRecur').classList.toggle('active', m === 'recur');
-  document.getElementById('modeSingle').classList.toggle('active', m === 'single');
-  document.getElementById('modeIf').classList.toggle('active', m === 'if');
-  document.getElementById('dateInput').style.display = (m === 'single') ? 'block' : 'none';
-};
+}
 
 window.toggleMultiInput = (prefix) => {
-  const cb = document.getElementById(`${prefix}IsMulti`);
-  const group = document.getElementById(`${prefix}RewardMin`) ? document.getElementById(`${prefix}MinInputGroup`) : document.getElementById('newMinInputGroup');
-  const on = cb && cb.checked;
-  if (group) group.style.display = on ? 'block' : 'none';
-};
+    const isMulti = document.getElementById(`${prefix}IsMulti`).checked;
+    document.getElementById(`${prefix}MinInputGroup`).style.display = isMulti ? 'block' : 'none';
+    const rewardLbl = document.getElementById(prefix === 'new' ? 'lblNewReward' : 'lblEditReward');
+    rewardLbl.innerText = isMulti ? 'Reward (Max)' : 'Reward';
+    const descInput = document.getElementById(`${prefix}Desc`);
+    if(descInput) descInput.style.display = 'block'; 
+}
+
+window.setAddType = (t) => {
+    addType = t;
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
+    if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active'); 
+    else if(recurMode === 'single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); 
+
+    document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
+    document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
+    const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
+    (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+}
+
+window.setRecurMode = (m) => {
+    recurMode = m;
+    // Reset classi
+    document.getElementById('modeRecur').classList.remove('active'); 
+    document.getElementById('modeSingle').classList.remove('active');
+    document.getElementById('modeIf').classList.remove('active');
+    
+    // Attiva classe corretta
+    if(m==='recur') document.getElementById('modeRecur').classList.add('active');
+    else if(m==='single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); // IF
+
+    // Gestione visibilità input
+    const recurInput = document.getElementById('recurInput');
+    const dateInput = document.getElementById('dateInput');
+    const penaltyInput = document.getElementById('groupNewPenalty');
+
+    if(m === 'recur') {
+        recurInput.style.display = 'block';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'visible';
+    } else if (m === 'single') {
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'block';
+        penaltyInput.style.visibility = 'visible';
+        document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
+    } else { // IF MODE
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'hidden'; // Nascondi penalità
+    }
+}
+
+window.openEditModal = (id, type) => {
+    editingType = type;
+    const list = type === 'habit' ? globalData.habits : globalData.rewards;
+    editingItem = list.find(i => i.id === id);
+    if(!editingItem) return;
+    document.getElementById('editName').value = editingItem.name; document.getElementById('editNote').value = ''; document.getElementById('editDate').value = new Date().toISOString().split('T')[0];
+    const tagSel = document.getElementById('editTag'); tagSel.innerHTML = '<option value="">Nessun Tag</option>';
+    (globalData.tags || []).forEach(t => { const opt = document.createElement('option'); opt.value = t.id; opt.innerText = t.name; tagSel.appendChild(opt); });
+    tagSel.value = editingItem.tagId || "";
+    if (type === 'habit') {
+        document.getElementById('editHabitFields').style.display = 'block'; document.getElementById('editRewardFields').style.display = 'none';
+        const isMulti = editingItem.isMulti || false; document.getElementById('editIsMulti').checked = isMulti; toggleMultiInput('edit'); 
+        document.getElementById('editVal1').value = editingItem.reward; document.getElementById('editVal2').value = editingItem.penalty; document.getElementById('editRewardMin').value = editingItem.rewardMin || 0; document.getElementById('editDesc').value = editingItem.description || "";
+    } else {
+        document.getElementById('editHabitFields').style.display = 'none'; document.getElementById('editRewardFields').style.display = 'block'; document.getElementById('editCost').value = editingItem.cost; document.getElementById('editDesc').value = "";
+    }
+    renderEditHistory(editingItem, type);
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function renderEditHistory(item, type) {
+    const container = document.getElementById('editHistoryLog'); container.innerHTML = '';
+    let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
+    if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
+    let html = '';
+    changes.forEach((change, index) => {
+        let dateFmt = change.date.split('-').reverse().join('/'); let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : ''; let text = '';
+        if (index === 0) {
+            if (type === 'habit') { let val = `Max: ${change.reward}`; if (change.isMulti) val += ` | Min: ${change.rewardMin}`; val += ` | Pen: ${change.penalty}`; text = `Valori iniziali: <b>${val}</b>`; } 
+            else { text = `Costo iniziale: <b>${change.cost}</b>`; }
+        } else {
+            let prev = changes[index - 1]; let diffs = [];
+            if (type === 'habit') {
+                if ((prev.reward||0) !== (change.reward||0)) diffs.push(`Max: ${prev.reward||0}→<b>${change.reward||0}</b>`);
+                if ((prev.rewardMin||0) !== (change.rewardMin||0)) diffs.push(`Min: ${prev.rewardMin||0}→<b>${change.rewardMin||0}</b>`);
+                if ((prev.penalty||0) !== (change.penalty||0)) diffs.push(`Pen: ${prev.penalty||0}→<b>${change.penalty||0}</b>`);
+                if (!!prev.isMulti !== !!change.isMulti) diffs.push(`Multi: ${prev.isMulti?'Sì':'No'}→<b>${change.isMulti?'Sì':'No'}</b>`);
+            } else { if ((prev.cost||0) !== (change.cost||0)) diffs.push(`Costo: ${prev.cost||0}→<b>${change.cost||0}</b>`); }
+            if (diffs.length > 0) text = diffs.join(' | '); else text = "Modifica dettagli (Nome/Tag/Desc)";
+        }
+        html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
+    });
+    container.innerHTML = html;
+}
+
+window.saveEdit = async () => {
+    if(!editingItem) return;
+    const newName = document.getElementById('editName').value; const editDate = document.getElementById('editDate').value; const editNote = document.getElementById('editNote').value; const newTag = document.getElementById('editTag').value; const newDesc = document.getElementById('editDesc').value;
+    if(!editDate) { alert("Data obbligatoria"); return; }
+    editingItem.name = newName; editingItem.tagId = newTag;
+    let newChangeEntry = { date: editDate }; if (editNote.trim() !== "") newChangeEntry.note = editNote;
+    if (editingType === 'habit') { 
+        const val1 = parseInt(document.getElementById('editVal1').value) || 0; const val2 = parseInt(document.getElementById('editVal2').value) || 0; const rewardMin = parseInt(document.getElementById('editRewardMin').value) || 0; const isMulti = document.getElementById('editIsMulti').checked;
+        newChangeEntry.reward = val1; newChangeEntry.penalty = val2; newChangeEntry.isMulti = isMulti; newChangeEntry.rewardMin = rewardMin; newChangeEntry.description = newDesc;
+        editingItem.reward = val1; editingItem.penalty = val2; editingItem.isMulti = isMulti; editingItem.rewardMin = rewardMin; editingItem.description = newDesc;
+    } else { const cost = parseInt(document.getElementById('editCost').value) || 0; newChangeEntry.cost = cost; editingItem.cost = cost; }
+    if (!editingItem.changes) {
+        let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
+        if (editingType === 'habit') { initialEntry.reward = editingItem.reward; initialEntry.penalty = editingItem.penalty; initialEntry.isMulti = editingItem.isMulti || false; initialEntry.rewardMin = editingItem.rewardMin || 0; initialEntry.description = editingItem.description || ""; } 
+        else { initialEntry.cost = editingItem.cost; }
+        editingItem.changes = [initialEntry];
+    }
+    editingItem.changes = editingItem.changes.filter(c => c.date !== editDate); editingItem.changes.push(newChangeEntry); editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
+    const ref = doc(db, "users", currentUser);
+    if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits }); else await updateDoc(ref, { rewards: globalData.rewards });
+    document.getElementById('editModal').style.display = 'none'; editingItem = null; renderView(); showToast("Salvato!", "✏️");
+}
 
 window.addItem = async () => {
-  const name = (document.getElementById('newName').value || '').trim();
-  const desc = (document.getElementById('newDesc').value || '').trim();
-  if (!name) {
-    showToast("Inserisci un nome", "✏️");
-    return;
-  }
+    let name = document.getElementById('newName').value; const tag = document.getElementById('newTag').value; if(!name) { vibrate('heavy'); return; }
+    const id = Date.now().toString(); const ref = doc(db, "users", currentUser);
+    try {
+        if(addType === 'habit') {
+            const r = parseInt(document.getElementById('newReward').value) || 0; 
+            const p = parseInt(document.getElementById('newPenalty').value) || 0; 
+            const freq = document.getElementById('newFrequency').value || 1; 
+            const targetDate = document.getElementById('newTargetDate').value; 
+            const isMulti = document.getElementById('newIsMulti').checked; 
+            const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; 
+            const desc = document.getElementById('newDesc').value || "";
+            
+            // V14: Gestione IF
+            let finalPenalty = p;
+            let finalFreq = freq;
+            if(recurMode === 'if') {
+                finalPenalty = 0; // Penalità zero forzata
+                finalFreq = 1;    // Frequenza giornaliera (virtuale)
+            }
 
-  try {
-    if (addType === 'habit') {
-      const reward = safeNum(document.getElementById('newReward').value);
-      const penalty = safeNum(document.getElementById('newPenalty').value);
-      const isMulti = document.getElementById('newIsMulti').checked;
-      const rewardMin = isMulti ? safeNum(document.getElementById('newRewardMin').value) : 0;
+            let newHabit = { 
+                id, name, 
+                reward:r, 
+                penalty: finalPenalty, 
+                tagId: tag, type: recurMode, 
+                isMulti: isMulti, rewardMin: rewardMin, description: desc 
+            };
 
-      const type = (recurMode === 'if') ? 'if' : (recurMode === 'single' ? 'single' : 'recur');
-      const targetDate = (type === 'single') ? (document.getElementById('newTargetDate').value || getDateString(new Date())) : null;
+            if (recurMode === 'recur') newHabit.frequency = parseInt(finalFreq); 
+            else if (recurMode === 'single') newHabit.targetDate = targetDate;
+            
+            await updateDoc(ref, { habits: arrayUnion(newHabit) });
+        } else { const c = document.getElementById('newCost').value || 0; await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c, tagId: tag}) }); }
+        document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
+    } catch(e) { console.error(e); }
+};
 
-      const item = {
-        id: `h_${Date.now()}`,
-        name,
-        description: desc,
-        reward,
-        rewardMin,
-        penalty,
-        isMulti,
-        type,
-        targetDate
-      };
+function setupNoteListener(dateStr) {
+    if (currentNoteUnsubscribe) { currentNoteUnsubscribe(); currentNoteUnsubscribe = null; }
+    const textArea = document.getElementById('dailyNoteArea'); textArea.value = ""; document.getElementById('noteStatus').innerText = "Caricamento...";
+    const noteRef = doc(db, "shared_notes", dateStr);
+    currentNoteUnsubscribe = onSnapshot(noteRef, (docSnap) => {
+        if (docSnap.exists()) { if (document.activeElement !== textArea) textArea.value = docSnap.data().text || ""; document.getElementById('noteStatus').innerText = "Sincronizzato"; } 
+        else { if (document.activeElement !== textArea) textArea.value = ""; document.getElementById('noteStatus').innerText = "Nessuna nota"; }
+    });
+}
+window.handleNoteInput = (val) => {
+    document.getElementById('noteStatus').innerText = "Salvataggio..."; clearTimeout(noteDebounceTimer);
+    noteDebounceTimer = setTimeout(async () => { const dateStr = getDateString(viewDate); const noteRef = doc(db, "shared_notes", dateStr); await setDoc(noteRef, { text: val }, { merge: true }); document.getElementById('noteStatus').innerText = "Salvato"; }, 1000);
+}
+function calculateStreak(habitId) {
+    let streak = 0; let d = new Date(); let str = getDateString(d); let entry = globalData.dailyLogs?.[str]; let doneArr = [];
+    if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
+    if (doneArr.includes(habitId)) streak++;
+    while (true) {
+        d.setDate(d.getDate() - 1); str = getDateString(d); entry = globalData.dailyLogs?.[str]; doneArr = [];
+        if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
+        if (doneArr.includes(habitId)) streak++; else break;
+    }
+    return streak;
+}
 
-      await mutateCurrentUserDoc((data) => {
-        data.habits = Array.isArray(data.habits) ? data.habits : [];
-        data.habits.push(item);
-      });
-      showToast("Abitudine salvata", "✅");
-    } else {
-      const cost = safeNum(document.getElementById('newCost').value);
-      const item = {
-        id: `r_${Date.now()}`,
-        name,
-        description: desc,
-        cost
-      };
-      await mutateCurrentUserDoc((data) => {
-        data.rewards = Array.isArray(data.rewards) ? data.rewards : [];
-        data.rewards.push(item);
-      });
-      showToast("Premio salvato", "🛍️");
+window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
+function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
+window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
+window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
+window.deleteTag = async (idx) => { if(!confirm("Eliminare tag?")) return; const tags = globalData.tags; tags.splice(idx, 1); await updateDoc(doc(db, "users", currentUser), { tags }); renderTagsList(); }
+window.archiveFromEdit = () => { if(!editingItem) return; archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); document.getElementById('editModal').style.display = 'none'; }
+window.archiveItem = (list, id) => { pendingArchiveId = { list, id }; document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; document.getElementById('archiveModal').style.display = 'flex'; }
+window.confirmArchive = async () => { if(!pendingArchiveId) return; const date = document.getElementById('archiveDate').value; const { list, id } = pendingArchiveId; const ref = doc(db, "users", currentUser); const arr = globalData[list]; const idx = arr.findIndex(i => i.id === id); if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } document.getElementById('archiveModal').style.display = 'none'; }
+window.exportData = async () => { vibrate('light'); showToast("Backup...", "⏳"); try { const usersCol = collection(db, 'users'); const userSnapshot = await getDocs(usersCol); let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); const date = new Date().toISOString().slice(0,10); downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Fatto!", "✅"); } catch (e) { console.error(e); showToast("Errore", "❌"); } };
+window.importData = (files) => { if (files.length === 0) return; const file = files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const backupData = JSON.parse(e.target.result); if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } showToast("Ripristino...", "⏳"); for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500); } catch (err) { console.error(err); showToast("File non valido", "❌"); } document.getElementById('importFile').value = ''; }; reader.readAsText(file); };
+window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
+window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
+async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
+function updateMultiChart() {
+    const canvas = document.getElementById('progressChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const days = 15;
+    const labels = [];
+    const dates = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const iso = d.toISOString().split('T')[0];
+        dates.push(iso);
+        labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
     }
 
-    // reset + close
-    document.getElementById('newName').value = '';
-    document.getElementById('newDesc').value = '';
-    document.getElementById('newReward').value = '';
-    document.getElementById('newPenalty').value = '';
-    document.getElementById('newRewardMin').value = '';
-    document.getElementById('newCost').value = '';
-    document.getElementById('newIsMulti').checked = false;
-    toggleMultiInput('new');
-    closeModal('addModal');
-  } catch (e) {
-    console.error(e);
-    showToast("Errore salvataggio", "⚠️");
-  }
-};
+    const calcNetSeries = (userData) => {
+        if (!userData || !userData.dailyLogs) return new Array(days).fill(0);
 
-// ---------- USER SWITCH ----------
-window.switchUser = (u) => {
-  if (u !== 'flavio' && u !== 'simona') return;
-  currentUser = u;
-  localStorage.setItem('glp_user', u);
-  applyTheme(u);
-  globalData = allUsersData[u];
-  renderView();
-};
+        return dates.map(date => {
+            const entry = userData.dailyLogs[date];
+            if (!entry) return 0;
 
-// Initial setAddType UI
-setAddType('habit');
-setRecurMode('recur');
+            let doneArr = [];
+            let failedArr = [];
+            let purchases = [];
+
+            if (Array.isArray(entry)) {
+                doneArr = entry;
+            } else {
+                doneArr = entry.habits || [];
+                failedArr = entry.failedHabits || [];
+                purchases = entry.purchases || [];
+            }
+
+            let net = 0;
+
+            // Earned
+            doneArr.forEach(hId => {
+                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if (!h) return;
+
+                const isMulti = window.getItemValueAtDate(h, 'isMulti', date);
+                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                const rMax = window.getItemValueAtDate(h, 'reward', date);
+
+                const lvl = (entry && !Array.isArray(entry) && entry.habitLevels && entry.habitLevels[hId]) ? entry.habitLevels[hId] : 'max';
+                net += (isMulti && lvl === 'min') ? rMin : rMax;
+            });
+
+            // Penalties
+            failedArr.forEach(hId => {
+                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if (!h) return;
+                const p = window.getItemValueAtDate(h, 'penalty', date);
+                net -= p;
+            });
+
+            // Spent
+            const spent = purchases.reduce((acc, p) => acc + parseInt(p.cost || 0), 0);
+            return net - spent;
+        });
+    };
+
+    const flavioPoints = calcNetSeries(allUsersData.flavio);
+    const simonaPoints = calcNetSeries(allUsersData.simona);
+
+    const data = {
+        labels,
+        datasets: [
+            { label: 'Flavio', data: flavioPoints, tension: 0.25, fill: false },
+            { label: 'Simona', data: simonaPoints, tension: 0.25, fill: false }
+        ]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { display: true, labels: { color: '#aaa' } },
+            tooltip: { enabled: true }
+        },
+        scales: {
+            x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { display: false } },
+            y: { beginAtZero: false, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    };
+
+    if (!chartInstance) {
+        chartInstance = new Chart(ctx, { type: 'line', data, options });
+    } else {
+        chartInstance.data = data;
+        chartInstance.options = options;
+        chartInstance.update('none');
+    }
+}
