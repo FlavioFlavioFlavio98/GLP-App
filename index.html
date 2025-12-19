@@ -7,10 +7,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V13.0 Analytics</title>
+    <title>GLP V13.1 Refactored</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
+    <link rel="icon" type="image/png" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
+    
     <link rel="stylesheet" href="style.css">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -18,193 +20,198 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V13.0 (Analytics & Pie)</div>
-    <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
+
+    <div class="version-tag">GLP V13.1 (Refactored)</div>
+    
+    <div id="toast">
+        <span id="toast-icon"></span>
+        <span id="toast-text"></span>
+    </div>
 
     <div class="identity-bar">
-        <div class="offline-badge">OFFLINE</div>
-        <div class="user-info"><div class="avatar" id="avatar-initial">F</div><div class="username" id="username-display">Flavio</div></div>
-        <button class="settings-btn" onclick="document.getElementById('settingsModal').style.display='flex'"><span class="material-icons-round">settings</span></button>
-    </div>
-
-    <div class="dashboard-top">
-        <div class="progress-container">
-            <svg class="progress-ring" width="100" height="100"><circle stroke="#2a2a2a" stroke-width="8" fill="transparent" r="42" cx="50" cy="50"/><circle id="prog-circle" class="progress-ring__circle" stroke="var(--theme-color)" stroke-width="8" fill="transparent" r="42" cx="50" cy="50" stroke-dasharray="263" stroke-dashoffset="263" stroke-linecap="round"/></svg>
-            <div class="progress-text" id="prog-text">0%</div>
+        <div class="user-info" onclick="window.location.reload()"> <div class="avatar" id="avatar-initial">?</div>
+            <div>
+                <div class="username" id="username-display">Caricamento...</div>
+                <div class="level-badge" id="level-display">Livello --</div>
+            </div>
         </div>
-        <div class="scoreboard-mini">
-            <div class="score-row" id="card-flavio" onclick="switchUser('flavio')"><span>Flavio</span><strong id="score-flavio">--</strong></div>
-            <div class="score-row" id="card-simona" onclick="switchUser('simona')"><span>Simona</span><strong id="score-simona">--</strong></div>
+        <div class="coins-display">
+            <span class="coin-icon">🪙</span>
+            <span id="score-flavio" style="color:#ffca28; margin-right:8px">--</span>
+            <span style="color:#666">|</span>
+            <span id="score-simona" style="color:#d05ce3; margin-left:8px">--</span>
         </div>
     </div>
 
-    <div class="chart-box"><canvas id="progressChart"></canvas></div>
-    
     <div class="date-nav">
-        <button class="date-btn" onclick="changeDate(-1)">&#8249;</button>
-        <div class="current-date-wrapper">
-            <span class="current-date" id="dateDisplay">OGGI</span>
-            <input type="date" id="datePicker" onchange="goToDate(this.value)">
+        <button class="nav-btn" onclick="window.changeDate(-1)">
+            <span class="material-icons-round">chevron_left</span>
+        </button>
+        <div class="current-date">
+            <h2 id="dateDisplay">OGGI</h2>
+            <input type="date" id="datePicker" onchange="window.goToDate(this.value)">
         </div>
-        <button class="date-btn" onclick="changeDate(1)">&#8250;</button>
+        <button class="nav-btn" onclick="window.changeDate(1)">
+            <span class="material-icons-round">chevron_right</span>
+        </button>
     </div>
 
     <div class="daily-summary">
-        <div class="sum-item"><div class="sum-label">Guadagnati</div><div class="sum-val earn" id="sum-earn">0</div></div>
-        <div class="sum-item"><div class="sum-label">Spesi/Pen</div><div class="sum-val spent" id="sum-spent">0</div></div>
-        <div class="sum-item"><div class="sum-label">Netto</div><div class="sum-val" id="sum-net">0</div></div>
+        <div class="summary-item">
+            <span class="summary-val success" id="sum-earn">+0</span>
+            <span class="summary-label">Guadagnati</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-val danger" id="sum-spent">-0</span>
+            <span class="summary-label">Spesi</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-val" id="sum-net" style="color:#fff">0</span>
+            <span class="summary-label">Netto</span>
+        </div>
     </div>
 
-    <div id="mainContent">
-        <div class="note-container">
-            <label style="font-size:0.8em; color:#888; margin-left:5px;"><span class="material-icons-round" style="font-size:12px; vertical-align:middle">group</span> Diario di Bordo</label>
-            <textarea id="dailyNoteArea" class="shared-note-area" placeholder="Scrivi una nota..." oninput="handleNoteInput(this.value)"></textarea>
-            <div id="noteStatus" style="font-size:0.7em; color:#666; text-align:right; margin-top:2px; height:15px;"></div>
-        </div>
+    <div class="tab-menu">
+        <button class="tab-btn active" onclick="window.switchTab('dashboard')">
+            <span class="material-icons-round">list_alt</span>
+            Home
+        </button>
+        <button class="tab-btn" onclick="window.switchTab('shop')">
+            <span class="material-icons-round">shopping_cart</span>
+            Shop
+        </button>
+        <button class="tab-btn" onclick="window.switchTab('analytics')">
+            <span class="material-icons-round">insights</span>
+            Stats
+        </button>
+    </div>
 
-        <h2>ABITUDINI DEL GIORNO</h2>
-        <div id="habitList"></div>
+    <div id="main-content" style="padding-bottom: 20px;">
         
-        <button class="accordion" onclick="toggleAccordion('upcomingList')"><span>📅 In Programma</span><span class="material-icons-round">expand_more</span></button>
-        <div class="panel" id="upcomingList"><div style="text-align:center; color:#555; padding:10px;">Niente in programma</div></div>
+        <div id="view-dashboard" class="view-section active">
+            
+            <div id="habitList" class="habit-list">
+                <div style="text-align:center; padding:30px; color:#666">
+                    Caricamento dati...
+                </div>
+            </div>
 
-        <h2>ACQUISTI DEL GIORNO</h2>
-        <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
+            <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
 
-        <button class="accordion" onclick="toggleAccordion('shopPanel')" style="margin-top:20px"><span>🛍️ Negozio Premi</span><span class="material-icons-round">expand_more</span></button>
-        <div class="panel" id="shopPanel">
-            <div id="shopList"></div>
+            <div class="section-title">Programmate / Uniche</div>
+            <div id="upcomingList" class="habit-list"></div>
+
+            <button class="fab" onclick="window.openEditModal(null, 'habit')">
+                <span class="material-icons-round">add</span>
+            </button>
+        </div>
+
+        <div id="view-shop" class="view-section" style="display:none;">
+            <div class="shop-header">
+                <h3>🛍️ Negozio Ricompense</h3>
+                <p style="font-size:0.9em; color:#888">Spendi i tuoi punti saggiamente.</p>
+            </div>
+            <div id="shopList" class="habit-list">
+                </div>
+            
+            <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+            <h3>🛒 Storico Acquisti (Oggi)</h3>
+            <div id="purchaseHistoryList" class="habit-list"></div>
+        </div>
+
+        <div id="view-analytics" class="view-section" style="display:none;">
+            
+            <div class="chart-container">
+                <h3>Andamento Punti</h3>
+                <div class="switch-group" style="margin-bottom:15px;">
+                    <div class="switch-opt" id="filter7" onclick="window.updateDetailedChart(7)">7 GG</div>
+                    <div class="switch-opt" id="filter14" onclick="window.updateDetailedChart(14)">14 GG</div>
+                    <div class="switch-opt active" id="filter30" onclick="window.updateDetailedChart(30)">30 GG</div>
+                </div>
+                <div style="flex:1; position:relative; min-height:200px;">
+                    <canvas id="detailedChart"></canvas>
+                </div>
+                <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
+                    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
+                        <strong id="nodeDate" style="color:var(--text)">--</strong>
+                        <div>
+                            <span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | 
+                            <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span>
+                        </div>
+                    </div>
+                    <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div>
+                </div>
+            </div>
+
+            <div class="chart-container" style="margin-top:20px">
+                <h3>Distribuzione Punti (30gg)</h3>
+                <div style="position:relative; height:250px; display:flex; justify-content:center">
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
-
-    <div id="addModal" class="modal">
-        <div class="modal-box">
-            <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
-            <div class="switch-group">
-                <div class="switch-opt active" id="typeHabit" onclick="setAddType('habit')">Abitudine</div>
-                <div class="switch-opt" id="typeReward" onclick="setAddType('reward')">Premio</div>
+    <div id="modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modifica</h3>
+                <button class="btn-icon-minimal" onclick="window.closeModal()">✕</button>
             </div>
-            <input type="text" id="newName" placeholder="Nome">
-            <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
-            <input type="text" id="newDesc" placeholder="Breve descrizione (Es. Min: 5 pag | Max: 1 cap)" class="full" style="display:none; font-size:0.9em">
+            <div class="modal-body">
+                <input type="text" id="edit-name" placeholder="Nome Attività/Reward" class="modal-input">
+                <input type="text" id="edit-desc" placeholder="Descrizione (Opzionale)" class="modal-input">
+                
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <div style="flex:1">
+                        <label>Punti / Costo</label>
+                        <input type="number" id="edit-val" class="modal-input">
+                    </div>
+                    <div style="flex:1" id="edit-val-min-wrapper">
+                        <label>Min Punti</label>
+                        <input type="number" id="edit-val-min" class="modal-input">
+                    </div>
+                </div>
 
-            <div id="habitInputs">
-                <div style="margin:15px 0; display:flex; align-items:center; gap:10px; background:#2a2a2a; padding:10px; border-radius:8px;">
-                    <input type="checkbox" id="newIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('new')">
-                    <label for="newIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <select id="edit-tag" class="modal-input"></select>
+                    <select id="edit-freq" class="modal-input">
+                        <option value="daily">Ogni Giorno</option>
+                        <option value="weekly">Settimanale</option>
+                        <option value="single">Data Singola</option>
+                    </select>
                 </div>
-                <div class="switch-group" style="margin-top:5px">
-                    <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorrente</div>
-                    <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo Giorno</div>
-                </div>
-                <div id="recurInput">
-                    <select id="newFrequency" class="full"><option value="1">Ogni Giorno</option><option value="3">Ogni 3 Giorni</option><option value="7">Settimanale</option><option value="30">Mensile</option></select>
-                </div>
-                <div id="dateInput" style="display:none"><input type="date" id="newTargetDate" class="full"></div>
-                <div class="grid-2">
-                    <div class="input-group"><label id="lblNewReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="newReward" placeholder="+"></div>
-                    <div class="input-group"><label style="font-size:0.8em; color:#888;">Penalità</label><input type="number" id="newPenalty" placeholder="-"></div>
-                </div>
-                <div id="newMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
-                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="newRewardMin" placeholder="Punti Minimi">
-                </div>
-            </div>
-            <div id="rewardInputs" style="display:none"><input type="number" id="newCost" placeholder="Costo"></div>
-            <button class="btn-main" onclick="addItem()">Salva</button>
-            <button class="btn-sec" onclick="document.getElementById('addModal').style.display='none'">Chiudi</button>
-        </div>
-    </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-box">
-            <h3>Modifica</h3>
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Data modifica</label><input type="date" id="editDate" class="full"></div>
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nome</label><input type="text" id="editName"></div>
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Descrizione</label><input type="text" id="editDesc" placeholder="Descrizione..."></div>
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Tag</label><select id="editTag" class="full"><option value="">Nessun Tag</option></select></div>
-
-            <div id="editHabitFields">
-                 <div style="margin:15px 0; display:flex; align-items:center; gap:10px; background:#2a2a2a; padding:10px; border-radius:8px;">
-                    <input type="checkbox" id="editIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('edit')">
-                    <label for="editIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
+                <div style="margin-top:15px; display:flex; gap:20px; align-items:center;">
+                    <label style="display:flex; align-items:center; gap:5px;">
+                        <input type="checkbox" id="edit-multi"> Multi (Min/Max)
+                    </label>
+                    <label style="display:flex; align-items:center; gap:5px;">
+                        <input type="checkbox" id="edit-penalty"> Penalità se saltata
+                    </label>
                 </div>
-                <div class="grid-2">
-                    <div class="input-group"><label id="lblEditReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="editVal1"></div>
-                    <div class="input-group" id="editValGroup2"><label style="font-size:0.8em; color:#888;">Penalty</label><input type="number" id="editVal2"></div>
+
+                <div id="edit-date-wrapper" style="margin-top:10px; display:none;">
+                    <label>Data Target</label>
+                    <input type="date" id="edit-target-date" class="modal-input">
                 </div>
-                <div id="editMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
-                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="editRewardMin">
+
+                <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center">
+                    <button id="btn-archive" class="btn-danger" style="display:none;" onclick="window.archiveItem()">Archivia</button>
+                    <button class="btn-primary" onclick="window.saveItem()">Salva</button>
                 </div>
-            </div>
-            <div id="editRewardFields" style="display:none"><div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div></div>
-
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica</label><textarea id="editNote" class="full" rows="2" placeholder="Perché questa modifica? (Es. Troppo facile, cambiato obiettivo...)"></textarea></div>
-            
-            <div class="history-list" id="editHistoryLog"></div>
-            <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
-            <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia</button>
-            <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
-        </div>
-    </div>
-
-    <div id="archiveModal" class="modal">
-        <div class="modal-box"><h3>Archivia</h3><input type="date" id="archiveDate" class="full"><button class="btn-danger" onclick="confirmArchive()">Archivia</button><button class="btn-sec" onclick="document.getElementById('archiveModal').style.display='none'">Annulla</button></div>
-    </div>
-    
-    <div id="settingsModal" class="modal">
-        <div class="modal-box" style="text-align:center"><h3>Impostazioni</h3><button class="btn-backup" onclick="openAnalytics()">📉 Analisi</button><button class="btn-backup" onclick="openStats()">📊 Statistiche</button><button class="btn-backup" onclick="openTagManager()">🏷️ Tag</button><hr style="margin:20px 0; border:1px solid #333"><button class="btn-backup" onclick="exportData()">Backup</button><button class="btn-backup" onclick="document.getElementById('importFile').click()">Ripristina</button><input type="file" id="importFile" style="display:none" onchange="importData(this.files)"><hr style="margin:20px 0; border:1px solid #333"><button class="btn-danger" onclick="hardReset()">RESET</button><button class="btn-sec" onclick="document.getElementById('settingsModal').style.display='none'">Chiudi</button></div>
-    </div>
-    
-    <div id="tagModal" class="modal">
-        <div class="modal-box"><h3>Tag</h3><div id="tagsList" style="max-height:200px; overflow-y:auto; margin-bottom:15px"></div><div style="background:#2a2a2a; padding:10px;"><input type="text" id="newTagName" placeholder="Nome"><input type="color" id="newTagColor" value="#3498db" style="width:100%; height:40px; margin:5px 0"><button id="btnSaveTag" class="btn-main" onclick="saveTagManager()">Crea</button></div><button class="btn-sec" onclick="document.getElementById('tagModal').style.display='none'">Chiudi</button></div>
-    </div>
-    
-    <div id="statsModal" class="modal">
-        <div class="modal-box" style="max-width:500px">
-            <h3>📊 Statistiche Generali</h3>
-            
-            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Distribuzione Punti</h4>
-            <div style="width:200px; height:200px; margin:0 auto 20px auto;">
-                <canvas id="pieChart"></canvas>
-            </div>
-
-            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Overview</h4>
-            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
-            
-            <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
-        </div>
-    </div>
-    
-    <div id="analyticsModal" class="modal">
-        <div class="modal-box" style="width:95%; max-width:800px; height:85vh; display:flex; flex-direction:column;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <h3>📉 Analisi Dettagliata</h3>
-                <button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button>
-            </div>
-            
-            <div class="switch-group" style="margin-bottom:15px;">
-                <div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div>
-                <div class="switch-opt" id="filter14" onclick="updateDetailedChart(14)">14 GG</div>
-                <div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div>
-            </div>
-
-            <div style="flex:1; position:relative; min-height:0;">
-                <canvas id="detailedChart"></canvas>
-            </div>
-            
-            <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
-                    <strong id="nodeDate" style="color:var(--text)">--</strong>
-                    <div><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div>
-                </div>
-                <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div>
             </div>
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
-    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
+    <div style="text-align:center; margin-top:40px; color:#444;">
+        <button class="btn-text" onclick="window.switchUser('flavio')">Passa a Flavio</button> | 
+        <button class="btn-text" onclick="window.switchUser('simona')">Passa a Simona</button>
+        <p style="font-size:10px; margin-top:10px">GLP PWA - Time Travel Enabled</p>
+    </div>
+
+    <script type="module" src="main.js"></script>
+
 </body>
 </html>
