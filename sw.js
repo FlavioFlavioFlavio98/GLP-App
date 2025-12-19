@@ -1,46 +1,61 @@
-const CACHE_NAME = 'glp-v1';
+const CACHE_NAME = 'glp-v14-6';
+
 const ASSETS_TO_CACHE = [
-    './',
-    './index.html',
-    './style.css',
-    './app.js',
-    './manifest.json',
-    'https://cdn.jsdelivr.net/npm/chart.js',
-    'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',
-    'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
+  './',
+  './index.html',
+  './style.css',
+  './style.css?v=14.6',
+  './app.js',
+  './app.js?v=14.6',
+  './manifest.json',
+  'https://cdn.jsdelivr.net/npm/chart.js',
+  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',
+  'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
 ];
 
-// INSTALLAZIONE: Caching iniziale
+// INSTALL: caching iniziale + attivazione immediata
 self.addEventListener('install', (evt) => {
-    evt.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('SW: Caching assets');
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
-    );
+  evt.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+  );
+  self.skipWaiting();
 });
 
-// ATTIVAZIONE: Pulizia vecchie cache
+// ACTIVATE: pulizia vecchie cache + prende controllo subito
 self.addEventListener('activate', (evt) => {
-    evt.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-            );
-        })
-    );
+  evt.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))))
+      .then(() => self.clients.claim())
+  );
 });
 
-// FETCH: Strategia "Cache First" per i file statici, ma lascia passare le chiamate a Firebase
+// FETCH:
+// - Navigazione (index.html): network-first per prendere versioni nuove
+// - Statici: cache-first
+// - Firebase/Google APIs: bypass
 self.addEventListener('fetch', (evt) => {
-    // Ignora chiamate a Firestore/Google APIs (gestite da SDK Firebase)
-    if (evt.request.url.includes('firestore') || evt.request.url.includes('googleapis')) {
-        return;
-    }
+  const url = evt.request.url;
 
+  // Bypass Firestore / Google APIs
+  if (url.includes('firestore') || url.includes('googleapis')) return;
+
+  // Network-first per navigazione (HTML)
+  if (evt.request.mode === 'navigate') {
     evt.respondWith(
-        caches.match(evt.request).then((cacheRes) => {
-            return cacheRes || fetch(evt.request);
+      fetch(evt.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          return res;
         })
+        .catch(() => caches.match('./index.html'))
     );
+    return;
+  }
+
+  // Cache-first per gli altri asset
+  evt.respondWith(
+    caches.match(evt.request).then((cacheRes) => cacheRes || fetch(evt.request))
+  );
 });

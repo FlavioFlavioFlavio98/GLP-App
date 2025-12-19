@@ -18,29 +18,31 @@ const db = getFirestore(app);
 let currentUser = localStorage.getItem('glp_user') || 'flavio';
 let globalData = null;
 let allUsersData = { flavio: null, simona: null };
-let viewDate = new Date(); 
+let viewDate = new Date();
+const APP_VERSION = '14.6'; 
 let chartInstance = null;
 
-let renderRafId = null;
-function scheduleRenderView() {
-  if (renderRafId) return;
-  renderRafId = requestAnimationFrame(() => {
-    renderRafId = null;
-    renderView();
-  });
+// ===== Performance (V14.6): batch render/chart updates =====
+let _renderRaf = null;
+function scheduleRenderView(){
+    if(_renderRaf) return;
+    _renderRaf = requestAnimationFrame(() => {
+        _renderRaf = null;
+        if(globalData) renderView();
+    });
 }
 
-let chartRafId = null;
-function scheduleMultiChartUpdate() {
-  if (chartRafId) return;
-  chartRafId = requestAnimationFrame(() => {
-    chartRafId = null;
-    updateMultiChart();
-  });
+let _chartRaf = null;
+function scheduleChartUpdate(){
+    if(_chartRaf) return;
+    _chartRaf = requestAnimationFrame(() => {
+        _chartRaf = null;
+        updateMultiChart();
+    });
 }
 
-// Prevent double-taps while a write is in flight (keyed by date+habit+action)
-const pendingWrites = new Set();
+const _pendingActions = new Set();
+
 let detailedChartInstance = null;
 let pieChartInstance = null;
 let pendingArchiveId = null;
@@ -136,7 +138,7 @@ function startListeners() {
                 allUsersData[u] = userData;
                 document.getElementById(`score-${u}`).innerText = userData.score;
                 if(u === currentUser) { globalData = userData; scheduleRenderView(); }
-                scheduleMultiChartUpdate();
+                scheduleChartUpdate();
             }
         });
     });
@@ -146,8 +148,8 @@ function startListeners() {
 // SEZIONE 3: CORE LOGIC (RENDER & STATUS)
 // ==========================================
 
-window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); renderView(); }
-window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); renderView(); } }
+window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); scheduleChartUpdate(); }
+window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); scheduleRenderView(); scheduleChartUpdate(); } }
 function getDateString(date) { return date.toISOString().split('T')[0]; }
 
 function renderView() {
@@ -169,24 +171,7 @@ function renderView() {
     
     let doneHabits = Array.isArray(entry) ? entry : (entry.habits || []);
     const failedHabits = entry.failedHabits || [];
-    const habitLevels = entry.habitLevels || {};
-
-    // Build a "last done date" map from dailyLogs (up to the viewed date).
-    // This avoids writing the whole habits array to Firestore on every click just to update h.lastDone.
-    const lastDoneMap = (() => {
-        const map = {};
-        const logs = globalData.dailyLogs || {};
-        const dates = Object.keys(logs).filter(ds => ds <= viewStr).sort().reverse();
-        for (const ds of dates) {
-            const log = logs[ds];
-            const done = Array.isArray(log) ? log : (log?.habits || []);
-            for (const id of done) {
-                if (map[id] === undefined) map[id] = ds;
-            }
-        }
-        return map;
-    })();
- 
+    const habitLevels = entry.habitLevels || {}; 
     const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
     const hList = document.getElementById('habitList');
@@ -351,6 +336,10 @@ function renderView() {
 
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
+    const _key = `habit|${dateStr}|${habitId}|${action}|${value||''}`;
+    if (_pendingActions.has(_key)) return;
+    _pendingActions.add(_key);
+    try {
     const ref = doc(db, "users", currentUser);
     let dailyLogs = globalData.dailyLogs || {};
     let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], habitLevels: {}, purchases: [] };
@@ -407,20 +396,20 @@ window.setHabitStatus = async (habitId, action, value) => {
 
     dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, habitLevels: currentLevels, purchases: entry.purchases || [] };
     scheduleRenderView();
-        scheduleMultiChartUpdate();
-
-        await updateDoc(ref, {
-            score: globalData.score,
-            dailyLogs: dailyLogs
-        });
+    scheduleChartUpdate();
+    await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs });
     logHistory(currentUser, globalData.score);
     vibrate('light');
     if(actionType === 'done') {
         if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
         showToast("Completata!", "✅");
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
+
+    } catch (e) {
+        console.error("setHabitStatus error:", e);
+        showToast("Errore, riprova", "⚠️");
     } finally {
-        pendingWrites.delete(writeKey);
+        _pendingActions.delete(_key);
     }
 };
 
@@ -620,6 +609,10 @@ window.openStats = () => {
     `;
     document.getElementById('statsContent').innerHTML = html;
     document.getElementById('statsModal').style.display = 'flex';
+    } finally {
+        _pendingActions.delete(_key);
+    }
+
 }
 
 window.toggleMultiInput = (prefix) => {
@@ -830,42 +823,95 @@ function updateMultiChart() {
 
     const days = 15;
     const labels = [];
-    const flavioPoints = [];
-    const simonaPoints = [];
+    const dates = [];
 
     for (let i = days - 1; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        labels.push(dateStr.slice(5)); // MM-DD
-        flavioPoints.push(getDailyNetPoints('flavio', dateStr));
-        simonaPoints.push(getDailyNetPoints('simona', dateStr));
+        const iso = d.toISOString().split('T')[0];
+        dates.push(iso);
+        labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
     }
+
+    const calcNetSeries = (userData) => {
+        if (!userData || !userData.dailyLogs) return new Array(days).fill(0);
+
+        return dates.map(date => {
+            const entry = userData.dailyLogs[date];
+            if (!entry) return 0;
+
+            let doneArr = [];
+            let failedArr = [];
+            let purchases = [];
+
+            if (Array.isArray(entry)) {
+                doneArr = entry;
+            } else {
+                doneArr = entry.habits || [];
+                failedArr = entry.failedHabits || [];
+                purchases = entry.purchases || [];
+            }
+
+            let net = 0;
+
+            // Earned
+            doneArr.forEach(hId => {
+                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if (!h) return;
+
+                const isMulti = window.getItemValueAtDate(h, 'isMulti', date);
+                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                const rMax = window.getItemValueAtDate(h, 'reward', date);
+
+                const lvl = (entry && !Array.isArray(entry) && entry.habitLevels && entry.habitLevels[hId]) ? entry.habitLevels[hId] : 'max';
+                net += (isMulti && lvl === 'min') ? rMin : rMax;
+            });
+
+            // Penalties
+            failedArr.forEach(hId => {
+                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if (!h) return;
+                const p = window.getItemValueAtDate(h, 'penalty', date);
+                net -= p;
+            });
+
+            // Spent
+            const spent = purchases.reduce((acc, p) => acc + parseInt(p.cost || 0), 0);
+            return net - spent;
+        });
+    };
+
+    const flavioPoints = calcNetSeries(allUsersData.flavio);
+    const simonaPoints = calcNetSeries(allUsersData.simona);
+
+    const data = {
+        labels,
+        datasets: [
+            { label: 'Flavio', data: flavioPoints, tension: 0.25, fill: false },
+            { label: 'Simona', data: simonaPoints, tension: 0.25, fill: false }
+        ]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { display: true, labels: { color: '#aaa' } },
+            tooltip: { enabled: true }
+        },
+        scales: {
+            x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { display: false } },
+            y: { beginAtZero: false, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+    };
 
     if (!chartInstance) {
-        chartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [
-                    { label: 'Flavio', data: flavioPoints, tension: 0.25, fill: false },
-                    { label: 'Simona', data: simonaPoints, tension: 0.25, fill: false }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { display: true } },
-                scales: { y: { beginAtZero: true } }
-            }
-        });
-        return;
+        chartInstance = new Chart(ctx, { type: 'line', data, options });
+    } else {
+        chartInstance.data = data;
+        chartInstance.options = options;
+        chartInstance.update('none');
     }
-
-    chartInstance.data.labels = labels;
-    chartInstance.data.datasets[0].data = flavioPoints;
-    chartInstance.data.datasets[1].data = simonaPoints;
-    chartInstance.update('none');
 }

@@ -6,11 +6,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V14.5</title>
+    <title>GLP V14.6</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css?v=14.0">
+    <link rel="stylesheet" href="style.css?v=14.6">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -24,7 +24,7 @@ window.onerror = function(msg, url, line) {
    document.getElementById('debug-error').innerHTML = "ERRORE: " + msg + " (Riga " + line + ")";
 };
 </script>
-    <div class="version-tag">GLP V14.5 (If Habits)</div>
+    <div class="version-tag">GLP V14.6 (If Habits)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -206,25 +206,23 @@ window.onerror = function(msg, url, line) {
         </div>
     </div>
 
-    <script type="module" src="app.js?v=14.5"></script>
+    <script type="module" src="app.js?v=14.6"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
 <script>
     function toggleAccordion(id, btn) {
         const panel = document.getElementById(id);
         if (!panel) return;
 
-        const isOpen = panel.classList.contains('show');
-        panel.classList.toggle('show', !isOpen);
+        const willOpen = !panel.classList.contains('show');
+        panel.classList.toggle('show', willOpen);
 
-        // Defensive: in older versions panels used max-height. Clear any inline leftovers.
-        if (!isOpen) {
+        // FIX: evita pannello "aperto ma altezza 0" se c'è qualche inline style rimasto da vecchie versioni
+        if (willOpen) {
             panel.style.maxHeight = '';
             panel.style.height = '';
         }
 
-        if (btn) {
-            btn.classList.toggle('active', !isOpen);
-        }
+        if (btn) btn.classList.toggle('active', willOpen);
     }
 </script>
 </body>

@@ -60,11 +60,13 @@ h2 { font-size: 0.9em; color: #666; text-transform: uppercase; margin: 20px 0 10
 .btn-status.done.active { background: var(--success); color: white; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3); }
 
 /* MIN: Bordo verde, sfondo trasparente (COME RICHIESTO) */
-.btn-status.done.min { 
+.btn-status.done.min {
+ 
     background: transparent !important; 
     border: 2px solid var(--success) !important; 
     color: var(--success) !important; 
-    font-size: 0.7em; 
+    font-size: 0.7em !important; 
+
 }
 
 .btn-status.failed { background: #333; color: #666; }
@@ -81,29 +83,30 @@ h2 { font-size: 0.9em; color: #666; text-transform: uppercase; margin: 20px 0 10
 
 /* ACCORDION FIX (V14.5) */
 .accordion { background-color: var(--card); color: var(--text-sec); cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 1rem; transition: 0.3s; border-radius: 12px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
-.accordion .material-icons-round{ transition: transform 0.2s ease; }
-.accordion.active .material-icons-round{ transform: rotate(180deg); }
-
 .active, .accordion:hover { background-color: #2a2a2a; color: var(--theme-color); }
-.panel{
-    display:none;
-    background-color: rgba(255,255,255,0.03);
-    margin-top:10px;
-    border-radius:10px;
-    overflow:hidden;
+/* ACCORDION FIX (V14.6) */
+.accordion { background-color: var(--card); color: var(--text); cursor: pointer; padding: 14px; width: 100%; border-radius: 12px; text-align: left; outline: none; font-size: 1em; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
+.active, .accordion:hover { background-color: #2a2a2a; color: var(--theme-color); }
+
+.panel {
+    display: none; /* Base: nascosto */
+    background-color: rgba(255, 255, 255, 0.03);
+    margin-top: 10px;
+    border-radius: 10px;
+    overflow: hidden;
     padding: 5px 0;
-    height:auto;
-    /* Defensive: avoids "open but height 0" if some old CSS/inline max-height is still around */
+
+    /* FIX: se rimane un max-height inline a 0, lo sovrascriviamo quando .show è attivo */
     max-height: 0;
     transition: max-height 0.25s ease;
 }
-/* Quando JS aggiunge .show, diventa block !important */
-.panel.show{
-    display:block !important;
-    height:auto !important;
+.panel.show {
+    display: block !important;
+    height: auto !important;
     max-height: 5000px !important;
     animation: fadeInPanel 0.3s ease;
 }
+
 @keyframes fadeInPanel { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
 /* MODALS */
@@ -132,3 +135,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--theme-color); ou
 @keyframes fadeout { from {bottom: 100px; opacity: 1;} to {bottom: 30px; opacity: 0;} }
 .tag-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #333; }
 .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+
+/* Arrow rotation when accordion is active */
+.accordion .material-icons-round{ transition: transform 0.2s ease; }
+.accordion.active .material-icons-round{ transform: rotate(180deg); }
