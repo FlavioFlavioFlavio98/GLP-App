@@ -70,15 +70,7 @@ function countRewardPurchases(rewardName) {
     return count;
 }
 
-
-window.toggleAccordion = (id) => {
-    const el = document.getElementById(id);
-    if (el) {
-        el.classList.toggle('show');
-    } else {
-        console.error("Nessun elemento trovato con id:", id);
-    }
-};
+// NOTA: La funzione toggleAccordion è stata rimossa da qui perché presente in index.html
 
 window.toggleInputs = () => {}; 
 
@@ -163,7 +155,7 @@ function renderView() {
     const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
 
     const hList = document.getElementById('habitList'); hList.innerHTML = '';
-    const ifList = document.getElementById('ifList'); ifList.innerHTML = ''; // V14: Lista separata
+    const ifList = document.getElementById('ifList'); ifList.innerHTML = ''; 
     
     let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
     let visibleCount = 0; let ifCount = 0;
@@ -187,13 +179,11 @@ function renderView() {
         const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
         const description = window.getItemValueAtDate(h, 'description', viewStr);
 
-        // V14: Logica IF
         let isIfHabit = (h.type === 'if');
 
         let shouldShow = true;
         let daysLeft = 0;
         
-        // Logica ricorrenza (solo se non è IF e non è single)
         if (!isIfHabit && h.type !== 'single' && freq > 1) {
             if (isDone || isFailed) { shouldShow = true; } else {
                 if (h.lastDone) {
@@ -206,7 +196,7 @@ function renderView() {
         if (shouldShow) {
             if (!isIfHabit) {
                 visibleCount++;
-                dailyTotalPot += currentReward; // Solo i doveri contano per il potenziale
+                dailyTotalPot += currentReward; 
             } else {
                 ifCount++;
             }
@@ -238,9 +228,8 @@ function renderView() {
             let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
             let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
             
-            // V14: Costruzione HTML Differenziata
             const failBtn = isIfHabit 
-                ? '' // Niente tasto X per le If
+                ? '' 
                 : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
 
             const itemHtml = `
@@ -379,9 +368,7 @@ window.setHabitStatus = async (habitId, action, value) => {
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
 };
 
-// V14: Consenti debito
 window.buyReward = async (name, cost) => {
-    // V14 FIX: Avviso solo, non bloccare
     if(globalData.score < cost) { 
         if(!confirm(`Attenzione: Saldo insufficiente (${globalData.score}). Andrai in negativo. Continuare?`)) return;
     } else {
@@ -602,7 +589,6 @@ window.setAddType = (t) => {
     (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
 }
 
-// V14: Logica UI per la modalità IF
 window.setRecurMode = (m) => {
     recurMode = m;
     // Reset classi
@@ -735,7 +721,6 @@ window.addItem = async () => {
 
             if (recurMode === 'recur') newHabit.frequency = parseInt(finalFreq); 
             else if (recurMode === 'single') newHabit.targetDate = targetDate;
-            // Se mode è 'if', non serve frequency né targetDate nel DB (è implicito)
             
             await updateDoc(ref, { habits: arrayUnion(newHabit) });
         } else { const c = document.getElementById('newCost').value || 0; await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c, tagId: tag}) }); }
