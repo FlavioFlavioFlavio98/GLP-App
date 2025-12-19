@@ -35,19 +35,15 @@ let recurMode = 'recur';
 // SEZIONE 1: HELPERS & UTILITIES
 // ==========================================
 
-// Helper per il Time Travel (Recupera valore valido in una certa data)
+// Helper Time Travel (Fondamentale: non toccare)
 window.getItemValueAtDate = (item, field, dateStr) => {
-    // Se non c'è storico, ritorna il valore base
     if (!item.changes || item.changes.length === 0) {
         if(field === 'isMulti') return item.isMulti || false;
         if(field === 'description') return item.description || "";
         return parseInt(item[field] || 0);
     }
-    // Ordina lo storico
     const sortedChanges = item.changes.slice().sort((a, b) => a.date.localeCompare(b.date));
     let validChange = null;
-    
-    // Trova l'ultima modifica valida prima o durante la data richiesta
     for (let change of sortedChanges) {
         if (change.date <= dateStr) validChange = change; else break;
     }
@@ -57,7 +53,6 @@ window.getItemValueAtDate = (item, field, dateStr) => {
         if(field === 'description') return validChange.description || "";
         return parseInt(validChange[field] || 0);
     }
-    // Fallback al primo valore se non trovo nulla (es. guardo una data molto vecchia)
     if(sortedChanges.length > 0) {
          if(field === 'isMulti') return sortedChanges[0].isMulti || false;
          if(field === 'description') return sortedChanges[0].description || "";
@@ -76,7 +71,20 @@ function countRewardPurchases(rewardName) {
     return count;
 }
 
-// Gestione Swipe su Mobile
+// Funzione Accordion (RIPRISTINATA: Fixa il menu a tendina)
+window.toggleAccordion = (id) => {
+    const x = document.getElementById(id);
+    if (x.className.indexOf("show") == -1) {
+        x.className += " show";
+    } else {
+        x.className = x.className.replace(" show", "");
+    }
+};
+
+// Funzione placeholder per evitare errori HTML (RIPRISTINATA)
+window.toggleInputs = () => {}; 
+
+// Swipe
 let touchStartX = 0; let touchEndX = 0;
 document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
 document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
@@ -87,6 +95,7 @@ function handleSwipe() {
 
 window.addEventListener('online', () => document.body.classList.remove('offline'));
 window.addEventListener('offline', () => document.body.classList.add('offline'));
+
 window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
 window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
 
@@ -135,13 +144,11 @@ window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); ren
 window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); renderView(); } }
 function getDateString(date) { return date.toISOString().split('T')[0]; }
 
-// Funzione principale che disegna la pagina
 function renderView() {
     if(!globalData) return;
     const todayStr = getDateString(new Date());
     const viewStr = getDateString(viewDate);
     
-    // Header Data
     const displayEl = document.getElementById('dateDisplay');
     let isToday = (viewStr === todayStr);
     if (isToday) displayEl.innerText = "OGGI";
@@ -151,7 +158,6 @@ function renderView() {
     document.getElementById('datePicker').value = viewStr;
     setupNoteListener(viewStr);
 
-    // Recupero Dati del Giorno
     const dailyLogs = globalData.dailyLogs || {};
     const entry = dailyLogs[viewStr] || {};
     
@@ -169,11 +175,9 @@ function renderView() {
     const tagsMap = {};
     (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
 
-    // CICLO ABITUDINI (Il cuore del render)
     (globalData.habits || []).forEach((h) => {
         const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
         
-        // Filtri (Archiviazione e Data Singola)
         if (h.archivedAt && viewStr >= h.archivedAt) return;
         if (h.type === 'single' && h.targetDate !== viewStr) return;
 
@@ -181,14 +185,12 @@ function renderView() {
         const isFailed = failedHabits.includes(stableId);
         const freq = h.frequency || 1; 
         
-        // Time Travel: Uso viewStr per vedere quanto valeva l'abitudine in quel giorno
         const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
         const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
         const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
         const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
         const description = window.getItemValueAtDate(h, 'description', viewStr);
 
-        // Calcolo Visibilità (Ricorrenza)
         let shouldShow = true;
         let daysLeft = 0;
         if (h.type !== 'single' && freq > 1) {
@@ -221,18 +223,11 @@ function renderView() {
                 if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
             }
 
-            // UI Pulsanti
-            let btnClass = '';
-            let btnIcon = 'check';
-            let btnText = '';
-            
+            let btnClass = ''; let btnIcon = 'check'; let btnText = '';
             if (isDone) {
                 let level = habitLevels[stableId] || 'max';
-                if (isMulti && level === 'min') {
-                    btnClass = 'min'; btnText = 'MIN'; btnIcon = ''; 
-                } else {
-                    btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; 
-                }
+                if (isMulti && level === 'min') { btnClass = 'min'; btnText = 'MIN'; btnIcon = ''; } 
+                else { btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; }
             }
 
             let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
@@ -264,7 +259,6 @@ function renderView() {
     
     if(visibleCount === 0) hList.innerHTML = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
     
-    // Acquisti e Sommari
     let purchaseCost = 0;
     const pList = document.getElementById('purchasedList'); pList.innerHTML = '';
     if(todaysPurchases.length === 0) { pList.innerHTML = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
@@ -287,7 +281,6 @@ function renderView() {
 
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
-    // Render Rewards Shop
     const sList = document.getElementById('shopList'); sList.innerHTML = '';
     (globalData.rewards || []).forEach((r) => {
         if (r.archivedAt && viewStr >= r.archivedAt) return;
@@ -322,7 +315,7 @@ function updateProgressCircle(earned, total) {
     text.innerText = Math.round(percent) + "%";
 }
 
-// LOGICA CAMBIO STATO (Fixato V12.2)
+// LOGICA CAMBIO STATO (V12.2 - Stable)
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
@@ -347,11 +340,9 @@ window.setHabitStatus = async (habitId, action, value) => {
     const rewardMin = window.getItemValueAtDate(habitObj, 'rewardMin', dateStr);
     const penalty = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
 
-    // 1. Snapshot stato attuale
     const wasDone = currentHabits.includes(habitId);
     const wasLevel = currentLevels[habitId] || 'max';
 
-    // 2. Reset (Rimuovi punti temporaneamente)
     if (wasDone) {
         if (isMulti && wasLevel === 'min') globalData.score -= rewardMin;
         else globalData.score -= rewardMax;
@@ -363,7 +354,6 @@ window.setHabitStatus = async (habitId, action, value) => {
         currentFailed = currentFailed.filter(id => id !== habitId);
     }
 
-    // 3. Applica nuovo stato
     let actionType = 'neutral';
     if (action === 'failed') {
         currentFailed.push(habitId);
@@ -427,8 +417,14 @@ window.refundPurchase = async (idx, cost) => {
     vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
-// V13: ANALYTICS ASINCRONA
+// V13.2 FIX: Controllo di Sicurezza per Grafico (Evita Crash)
 window.updateDetailedChart = (days) => {
+    // FIX: Se i dati non sono ancora arrivati, esci senza fare nulla
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) {
+        console.log("Dati non ancora pronti per il grafico");
+        return; 
+    }
+
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
     document.getElementById(`filter${days}`).classList.add('active');
 
@@ -498,9 +494,16 @@ window.updateDetailedChart = (days) => {
         }
     });
 }
-window.openAnalytics = () => { document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
+window.openAnalytics = () => { 
+    // FIX: Controlla che i dati siano pronti prima di aprire il modale
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) {
+        showToast("Caricamento dati...", "⏳");
+        return; 
+    }
+    document.getElementById('analyticsModal').style.display = 'flex'; 
+    updateDetailedChart(30); 
+}
 
-// V13: STATS GENERALE (Torta & Power Day)
 window.openStats = () => {
     if (!globalData || !globalData.dailyLogs) return;
     let totalNet = 0; let daysCount = 0;
@@ -593,7 +596,6 @@ window.openStats = () => {
     document.getElementById('statsModal').style.display = 'flex';
 }
 
-// EDIT MODAL & HELPERS
 window.toggleMultiInput = (prefix) => {
     const isMulti = document.getElementById(`${prefix}IsMulti`).checked;
     document.getElementById(`${prefix}MinInputGroup`).style.display = isMulti ? 'block' : 'none';
@@ -602,6 +604,7 @@ window.toggleMultiInput = (prefix) => {
     const descInput = document.getElementById(`${prefix}Desc`);
     if(descInput) descInput.style.display = 'block'; 
 }
+
 window.setAddType = (t) => {
     addType = t;
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
@@ -612,6 +615,7 @@ window.setAddType = (t) => {
     const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
     (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
 }
+
 window.setRecurMode = (m) => {
     recurMode = m;
     document.getElementById('modeRecur').classList.remove('active'); document.getElementById('modeSingle').classList.remove('active');
@@ -619,6 +623,7 @@ window.setRecurMode = (m) => {
     document.getElementById('recurInput').style.display = m==='recur'?'block':'none'; document.getElementById('dateInput').style.display = m==='single'?'block':'none';
     if(m==='single') document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
 }
+
 window.openEditModal = (id, type) => {
     editingType = type;
     const list = type === 'habit' ? globalData.habits : globalData.rewards;
@@ -638,6 +643,7 @@ window.openEditModal = (id, type) => {
     renderEditHistory(editingItem, type);
     document.getElementById('editModal').style.display = 'flex';
 }
+
 function renderEditHistory(item, type) {
     const container = document.getElementById('editHistoryLog'); container.innerHTML = '';
     let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
@@ -662,6 +668,7 @@ function renderEditHistory(item, type) {
     });
     container.innerHTML = html;
 }
+
 window.saveEdit = async () => {
     if(!editingItem) return;
     const newName = document.getElementById('editName').value; const editDate = document.getElementById('editDate').value; const editNote = document.getElementById('editNote').value; const newTag = document.getElementById('editTag').value; const newDesc = document.getElementById('editDesc').value;
@@ -684,6 +691,7 @@ window.saveEdit = async () => {
     if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits }); else await updateDoc(ref, { rewards: globalData.rewards });
     document.getElementById('editModal').style.display = 'none'; editingItem = null; renderView(); showToast("Salvato!", "✏️");
 }
+
 window.addItem = async () => {
     let name = document.getElementById('newName').value; const tag = document.getElementById('newTag').value; if(!name) { vibrate('heavy'); return; }
     const id = Date.now().toString(); const ref = doc(db, "users", currentUser);
@@ -698,7 +706,6 @@ window.addItem = async () => {
     } catch(e) { console.error(e); }
 };
 
-// NOTES & MISC
 function setupNoteListener(dateStr) {
     if (currentNoteUnsubscribe) { currentNoteUnsubscribe(); currentNoteUnsubscribe = null; }
     const textArea = document.getElementById('dailyNoteArea'); textArea.value = ""; document.getElementById('noteStatus').innerText = "Caricamento...";
@@ -723,18 +730,120 @@ function calculateStreak(habitId) {
     }
     return streak;
 }
-window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
-function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
-window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
-window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
-window.deleteTag = async (idx) => { if(!confirm("Eliminare tag?")) return; const tags = globalData.tags; tags.splice(idx, 1); await updateDoc(doc(db, "users", currentUser), { tags }); renderTagsList(); }
-window.archiveFromEdit = () => { if(!editingItem) return; archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); document.getElementById('editModal').style.display = 'none'; }
-window.archiveItem = (list, id) => { pendingArchiveId = { list, id }; document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; document.getElementById('archiveModal').style.display = 'flex'; }
-window.confirmArchive = async () => { if(!pendingArchiveId) return; const date = document.getElementById('archiveDate').value; const { list, id } = pendingArchiveId; const ref = doc(db, "users", currentUser); const arr = globalData[list]; const idx = arr.findIndex(i => i.id === id); if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } document.getElementById('archiveModal').style.display = 'none'; }
-window.toggleInputs = () => {}; 
-window.exportData = async () => { vibrate('light'); showToast("Backup...", "⏳"); try { const usersCol = collection(db, 'users'); const userSnapshot = await getDocs(usersCol); let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); const date = new Date().toISOString().slice(0,10); downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Fatto!", "✅"); } catch (e) { console.error(e); showToast("Errore", "❌"); } };
-window.importData = (files) => { if (files.length === 0) return; const file = files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const backupData = JSON.parse(e.target.result); if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } showToast("Ripristino...", "⏳"); for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500); } catch (err) { console.error(err); showToast("File non valido", "❌"); } document.getElementById('importFile').value = ''; }; reader.readAsText(file); };
-window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+
+window.openTagManager = () => { 
+    editingTagIndex = null; 
+    document.getElementById('newTagName').value = ''; 
+    document.getElementById('btnSaveTag').innerText = "Crea Tag"; 
+    renderTagsList(); 
+    document.getElementById('tagModal').style.display = 'flex'; 
+}
+
+function renderTagsList() { 
+    const list = document.getElementById('tagsList'); 
+    list.innerHTML = ''; 
+    (globalData.tags || []).forEach((t, idx) => { 
+        list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; 
+    }); 
+}
+
+window.editTag = (idx) => { 
+    const t = globalData.tags[idx]; 
+    document.getElementById('newTagName').value = t.name; 
+    document.getElementById('newTagColor').value = t.color; 
+    editingTagIndex = idx; 
+    document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; 
+}
+
+window.saveTagManager = async () => { 
+    const name = document.getElementById('newTagName').value; 
+    const color = document.getElementById('newTagColor').value; 
+    if(!name) return; 
+    let tags = globalData.tags || []; 
+    if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } 
+    else { tags.push({ id: Date.now().toString(), name, color }); } 
+    const ref = doc(db, "users", currentUser); 
+    await updateDoc(ref, { tags: tags }); 
+    document.getElementById('newTagName').value = ''; editingTagIndex = null; 
+    document.getElementById('btnSaveTag').innerText = "Crea Tag"; 
+    renderTagsList(); 
+    showToast("Tag salvato", "🏷️"); 
+}
+
+window.deleteTag = async (idx) => { 
+    if(!confirm("Eliminare tag?")) return; 
+    const tags = globalData.tags; 
+    tags.splice(idx, 1); 
+    await updateDoc(doc(db, "users", currentUser), { tags }); 
+    renderTagsList(); 
+}
+
+window.archiveFromEdit = () => { 
+    if(!editingItem) return; 
+    archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); 
+    document.getElementById('editModal').style.display = 'none'; 
+}
+
+window.archiveItem = (list, id) => { 
+    pendingArchiveId = { list, id }; 
+    document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; 
+    document.getElementById('archiveModal').style.display = 'flex'; 
+}
+
+window.confirmArchive = async () => { 
+    if(!pendingArchiveId) return; 
+    const date = document.getElementById('archiveDate').value; 
+    const { list, id } = pendingArchiveId; 
+    const ref = doc(db, "users", currentUser); 
+    const arr = globalData[list]; 
+    const idx = arr.findIndex(i => i.id === id); 
+    if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } 
+    document.getElementById('archiveModal').style.display = 'none'; 
+}
+
+window.exportData = async () => { 
+    vibrate('light'); 
+    showToast("Backup...", "⏳"); 
+    try { 
+        const usersCol = collection(db, 'users'); 
+        const userSnapshot = await getDocs(usersCol); 
+        let backupData = {}; 
+        userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); 
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); 
+        const downloadAnchorNode = document.createElement('a'); 
+        downloadAnchorNode.setAttribute("href", dataStr); 
+        const date = new Date().toISOString().slice(0,10); 
+        downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); 
+        document.body.appendChild(downloadAnchorNode); 
+        downloadAnchorNode.click(); 
+        downloadAnchorNode.remove(); 
+        showToast("Fatto!", "✅"); 
+    } catch (e) { console.error(e); showToast("Errore", "❌"); } 
+};
+
+window.importData = (files) => { 
+    if (files.length === 0) return; 
+    const file = files[0]; 
+    const reader = new FileReader(); 
+    reader.onload = async (e) => { 
+        try { 
+            const backupData = JSON.parse(e.target.result); 
+            if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } 
+            showToast("Ripristino...", "⏳"); 
+            for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } 
+            showToast("Fatto!", "✅"); 
+            setTimeout(() => location.reload(), 1500); 
+        } catch (err) { console.error(err); showToast("File non valido", "❌"); } 
+        document.getElementById('importFile').value = ''; 
+    }; 
+    reader.readAsText(file); 
+};
+
+window.hardReset = async () => { 
+    const code = prompt("Scrivi RESET:"); 
+    if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } 
+};
+
 function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
 window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
 async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
