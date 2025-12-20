@@ -315,22 +315,24 @@ function renderView() {
     const sList = document.getElementById('shopList');
     let sListHtml = '';
     (globalData.rewards || []).forEach((r) => {
-        if (r.archivedAt && viewStr >= r.archivedAt) return;
-        const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
-        const tagObj = tagsMap[r.tagId];
-        const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
-        const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
-        const count = countRewardPurchases(r.name);
-        const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
+        try { // <--- QUESTA È LA PROTEZIONE CHE MANCAVA
+            if (r.archivedAt && viewStr >= r.archivedAt) return;
+            const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+            const tagObj = tagsMap[r.tagId];
+            const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+            const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+            const count = countRewardPurchases(r.name);
+            const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
 
-        sListHtml += `
-            <div class="item" style="${borderStyle}">
-                <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
-                <div class="actions-group">
-                        <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                        <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
-                </div>
-            </div>`;
+            sListHtml += `
+                <div class="item" style="${borderStyle}">
+                    <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
+                    <div class="actions-group">
+                            <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                            <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                    </div>
+                </div>`;
+        } catch (err) { console.error("Errore premio scartato:", r); }
     });
     if(sListHtml === '') sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
     sList.innerHTML = sListHtml;
