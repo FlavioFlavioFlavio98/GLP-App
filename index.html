@@ -6,18 +6,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V16.3</title>
+    <title>GLP V16.5</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css?v=16.2">
+    <link rel="stylesheet" href="style.css?v=16.5">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V16.3 (Performance Fix)</div>
+    <div class="version-tag">GLP V16.5 (Final Fixes)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -73,18 +73,25 @@
         <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
 
         <button class="accordion" onclick="toggleAccordion('rewardsPanel')" style="margin-top:30px">
-    <span>🛍️ Negozio Premi</span>
-    <span class="material-icons-round">expand_more</span>
-</button>
-<div class="panel" id="rewardsPanel">
-    <div id="shopList"></div>
-</div>
+            <span>🛍️ Negozio Premi</span>
+            <span class="material-icons-round">expand_more</span>
+        </button>
+        <div class="panel" id="rewardsPanel">
+            <div id="shopList"></div>
+        </div>
+    </div>
 
     <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
 
     <div id="addModal" class="modal">
         <div class="modal-box">
             <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
+            
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Data Inizio / Creazione</label>
+                <input type="date" id="newStartDate" class="full" style="color:var(--theme-color); font-weight:bold;">
+            </div>
+
             <div class="switch-group">
                 <div class="switch-opt active" id="typeHabit" onclick="setAddType('habit')">Abitudine</div>
                 <div class="switch-opt" id="typeReward" onclick="setAddType('reward')">Premio</div>
@@ -147,11 +154,14 @@
             </div>
             <div id="editRewardFields" style="display:none"><div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div></div>
 
-            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica</label><textarea id="editNote" class="full" rows="2" placeholder="Perché questa modifica? (Es. Troppo facile, cambiato obiettivo...)"></textarea></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica (Automatica se vuota)</label><textarea id="editNote" class="full" rows="2" placeholder="Lascia vuoto per log automatico, oppure scrivi qui..."></textarea></div>
             
             <div class="history-list" id="editHistoryLog"></div>
             <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
-            <button class="btn-danger" style="margin-top:30px; border-color: #d32f2f; background: rgba(211, 47, 47, 0.1);" onclick="archiveFromEdit()">Archivia</button>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn-danger" style="border-color: #ff9800; color: #ff9800;" onclick="archiveFromEdit()">Archivia</button>
+                <button class="btn-danger" onclick="deleteItemForever()">Elimina Definitivamente</button>
+            </div>
             <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
         </div>
     </div>
@@ -201,7 +211,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=16.2"></script>
+    <script type="module" src="app.js?v=16.5"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
     
     <script>

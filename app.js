@@ -31,7 +31,6 @@ let editingType = null;
 let addType = 'habit'; 
 let recurMode = 'recur';
 
-// Variabili per evitare rendering inutili
 let _renderTimer = null;
 
 // ==========================================
@@ -90,7 +89,7 @@ initApp();
 async function initApp() {
     await checkAndCreateUser('flavio');
     await checkAndCreateUser('simona');
-    setupListListeners(); // GESTIONE CLICK STABILI
+    setupListListeners(); 
     startListeners();
 }
 
@@ -233,7 +232,8 @@ function renderView() {
                 let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
                 let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
                 
-                // Bottoni preparati per la Delegation (senza onclick, ma con data-attributes)
+                // Bottoni preparati per la Delegation
+                // FIX BUG 1: Aggiunto btn-edit-habit anche qui
                 const btnEditHtml = `<button class="btn-icon-minimal btn-edit-habit" data-id="${h.id}"><span class="material-icons-round" style="font-size:18px">edit</span></button>`;
                 
                 const failBtn = isIfHabit 
@@ -297,7 +297,6 @@ function renderView() {
     netEl.className = 'sum-val'; 
     if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
 
-    // Aggiornamento Grafici
     if (typeof updateProgressCircle === 'function') {
         updateProgressCircle(dailyEarned, dailyTotalPot);
     }
@@ -688,51 +687,123 @@ function renderEditHistory(item, type) {
     if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
     let html = '';
     changes.forEach((change, index) => {
-        let dateFmt = change.date.split('-').reverse().join('/'); let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : ''; let text = '';
+        let dateFmt = change.date.split('-').reverse().join('/'); 
+        let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : ''; 
+        let text = '';
+        
         if (index === 0) {
-            if (type === 'habit') { let val = `Max: ${change.reward}`; if (change.isMulti) val += ` | Min: ${change.rewardMin}`; val += ` | Pen: ${change.penalty}`; text = `Valori iniziali: <b>${val}</b>`; } 
-            else { text = `Costo iniziale: <b>${change.cost}</b>`; }
+            text = "Creazione iniziale";
         } else {
-            let prev = changes[index - 1]; let diffs = [];
-            if (type === 'habit') {
-                if ((prev.reward||0) !== (change.reward||0)) diffs.push(`Max: ${prev.reward||0}→<b>${change.reward||0}</b>`);
-                if ((prev.rewardMin||0) !== (change.rewardMin||0)) diffs.push(`Min: ${prev.rewardMin||0}→<b>${change.rewardMin||0}</b>`);
-                if ((prev.penalty||0) !== (change.penalty||0)) diffs.push(`Pen: ${prev.penalty||0}→<b>${change.penalty||0}</b>`);
-                if (!!prev.isMulti !== !!change.isMulti) diffs.push(`Multi: ${prev.isMulti?'Sì':'No'}→<b>${change.isMulti?'Sì':'No'}</b>`);
-            } else { if ((prev.cost||0) !== (change.cost||0)) diffs.push(`Costo: ${prev.cost||0}→<b>${change.cost||0}</b>`); }
-            if (diffs.length > 0) text = diffs.join(' | '); else text = "Modifica dettagli (Nome/Tag/Desc)";
+            // FIX BUG 3: Se c'è una nota esplicita (nostra), non mostrare il testo tecnico
+            if (change.note && change.note.includes("Modifica:")) {
+                text = "Aggiornamento valori";
+            } else {
+                text = "Modifica dettagli";
+            }
         }
         html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
     });
     container.innerHTML = html;
 }
 
+// FIX BUG 3: Storico Intelligente (Log automatico modifiche)
 window.saveEdit = async () => {
     if(!editingItem) return;
-    const newName = document.getElementById('editName').value; const editDate = document.getElementById('editDate').value; const editNote = document.getElementById('editNote').value; const newTag = document.getElementById('editTag').value; const newDesc = document.getElementById('editDesc').value;
+    const newName = document.getElementById('editName').value; 
+    const editDate = document.getElementById('editDate').value; 
+    let editNote = document.getElementById('editNote').value.trim(); 
+    const newTag = document.getElementById('editTag').value; 
+    const newDesc = document.getElementById('editDesc').value;
+    
     if(!editDate) { alert("Data obbligatoria"); return; }
+    
+    // Genera LOG AUTOMATICO
+    let logs = [];
+    if(editingItem.name !== newName) logs.push(`Nome: ${editingItem.name} → ${newName}`);
+    if(editingType === 'habit') {
+        const val1 = parseInt(document.getElementById('editVal1').value) || 0;
+        const val2 = parseInt(document.getElementById('editVal2').value) || 0;
+        const valMin = parseInt(document.getElementById('editRewardMin').value) || 0;
+        if(editingItem.reward !== val1) logs.push(`Max: ${editingItem.reward} → ${val1}`);
+        if(editingItem.penalty !== val2) logs.push(`Penalty: ${editingItem.penalty} → ${val2}`);
+        if((editingItem.rewardMin||0) !== valMin) logs.push(`Min: ${editingItem.rewardMin||0} → ${valMin}`);
+    } else {
+        const cost = parseInt(document.getElementById('editCost').value) || 0;
+        if(editingItem.cost !== cost) logs.push(`Costo: ${editingItem.cost} → ${cost}`);
+    }
+
+    if (logs.length > 0 && editNote === "") {
+        editNote = "Modifica: " + logs.join(", ");
+    }
+
     editingItem.name = newName; editingItem.tagId = newTag;
-    let newChangeEntry = { date: editDate }; if (editNote.trim() !== "") newChangeEntry.note = editNote;
+    let newChangeEntry = { date: editDate }; 
+    if (editNote !== "") newChangeEntry.note = editNote;
+    
     if (editingType === 'habit') { 
-        const val1 = parseInt(document.getElementById('editVal1').value) || 0; const val2 = parseInt(document.getElementById('editVal2').value) || 0; const rewardMin = parseInt(document.getElementById('editRewardMin').value) || 0; const isMulti = document.getElementById('editIsMulti').checked;
+        const val1 = parseInt(document.getElementById('editVal1').value) || 0; 
+        const val2 = parseInt(document.getElementById('editVal2').value) || 0; 
+        const rewardMin = parseInt(document.getElementById('editRewardMin').value) || 0; 
+        const isMulti = document.getElementById('editIsMulti').checked;
+        
         newChangeEntry.reward = val1; newChangeEntry.penalty = val2; newChangeEntry.isMulti = isMulti; newChangeEntry.rewardMin = rewardMin; newChangeEntry.description = newDesc;
+        
         editingItem.reward = val1; editingItem.penalty = val2; editingItem.isMulti = isMulti; editingItem.rewardMin = rewardMin; editingItem.description = newDesc;
-    } else { const cost = parseInt(document.getElementById('editCost').value) || 0; newChangeEntry.cost = cost; editingItem.cost = cost; }
+    } else { 
+        const cost = parseInt(document.getElementById('editCost').value) || 0; 
+        newChangeEntry.cost = cost; 
+        editingItem.cost = cost; 
+    }
+    
     if (!editingItem.changes) {
         let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
         if (editingType === 'habit') { initialEntry.reward = editingItem.reward; initialEntry.penalty = editingItem.penalty; initialEntry.isMulti = editingItem.isMulti || false; initialEntry.rewardMin = editingItem.rewardMin || 0; initialEntry.description = editingItem.description || ""; } 
         else { initialEntry.cost = editingItem.cost; }
         editingItem.changes = [initialEntry];
     }
-    editingItem.changes = editingItem.changes.filter(c => c.date !== editDate); editingItem.changes.push(newChangeEntry); editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
+    
+    editingItem.changes = editingItem.changes.filter(c => c.date !== editDate); 
+    editingItem.changes.push(newChangeEntry); 
+    editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
+    
     const ref = doc(db, "users", currentUser);
     if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits }); else await updateDoc(ref, { rewards: globalData.rewards });
     document.getElementById('editModal').style.display = 'none'; editingItem = null; scheduleRenderView(); showToast("Salvato!", "✏️");
 }
 
+// FIX BUG 4: Eliminazione Definitiva
+window.deleteItemForever = async () => {
+    if(!editingItem) return;
+    if(!confirm("SEI SICURO? ⚠️\nQuesta azione eliminerà DEFINITIVAMENTE l'abitudine e tutto il suo storico.\nNon potrai tornare indietro.")) return;
+
+    const listName = editingType === 'habit' ? 'habits' : 'rewards';
+    let list = globalData[listName];
+    
+    // Filtra via l'elemento
+    const newList = list.filter(i => i.id !== editingItem.id);
+    
+    const ref = doc(db, "users", currentUser);
+    await updateDoc(ref, { [listName]: newList });
+    
+    document.getElementById('editModal').style.display = 'none';
+    editingItem = null;
+    showToast("Eliminato per sempre", "🗑️");
+};
+
 window.addItem = async () => {
-    let name = document.getElementById('newName').value; const tag = document.getElementById('newTag').value; if(!name) { vibrate('heavy'); return; }
-    const id = Date.now().toString(); const ref = doc(db, "users", currentUser);
+    let name = document.getElementById('newName').value; 
+    const tag = document.getElementById('newTag').value; 
+    
+    // FIX BUG 2: Data di Creazione Custom
+    let startDateInput = document.getElementById('newStartDate').value;
+    // Se l'utente non mette data, usa oggi
+    if (!startDateInput) startDateInput = new Date().toISOString().split('T')[0];
+
+    if(!name) { vibrate('heavy'); return; }
+    
+    const id = Date.now().toString(); 
+    const ref = doc(db, "users", currentUser);
+    
     try {
         if(addType === 'habit') {
             const r = parseInt(document.getElementById('newReward').value) || 0; 
@@ -743,12 +814,11 @@ window.addItem = async () => {
             const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; 
             const desc = document.getElementById('newDesc').value || "";
             
-            // V14: Gestione IF
             let finalPenalty = p;
             let finalFreq = freq;
             if(recurMode === 'if') {
-                finalPenalty = 0; // Penalità zero forzata
-                finalFreq = 1;    // Frequenza giornaliera (virtuale)
+                finalPenalty = 0; 
+                finalFreq = 1;   
             }
 
             let newHabit = { 
@@ -756,14 +826,28 @@ window.addItem = async () => {
                 reward:r, 
                 penalty: finalPenalty, 
                 tagId: tag, type: recurMode, 
-                isMulti: isMulti, rewardMin: rewardMin, description: desc 
+                isMulti: isMulti, rewardMin: rewardMin, description: desc,
+                // Inseriamo subito la storia con la data corretta
+                changes: [{
+                    date: startDateInput,
+                    reward: r, penalty: finalPenalty, isMulti: isMulti, rewardMin: rewardMin, description: desc,
+                    note: "Creazione Iniziale"
+                }]
             };
 
             if (recurMode === 'recur') newHabit.frequency = parseInt(finalFreq); 
             else if (recurMode === 'single') newHabit.targetDate = targetDate;
             
             await updateDoc(ref, { habits: arrayUnion(newHabit) });
-        } else { const c = document.getElementById('newCost').value || 0; await updateDoc(ref, { rewards: arrayUnion({id, name, cost:c, tagId: tag}) }); }
+        } else { 
+            const c = document.getElementById('newCost').value || 0; 
+            await updateDoc(ref, { 
+                rewards: arrayUnion({
+                    id, name, cost:c, tagId: tag,
+                    changes: [{ date: startDateInput, cost: c, note: "Creazione Iniziale" }]
+                }) 
+            }); 
+        }
         document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
     } catch(e) { console.error(e); }
 };
@@ -910,7 +994,7 @@ function updateMultiChart() {
     }); 
 }
 
-// --- NUOVA FUNZIONE PER GESTIONE CLICK STABILI ---
+// --- FUNZIONE PER GESTIONE CLICK STABILI ---
 function setupListListeners() {
     const list = document.getElementById('habitList');
     if(!list) return;
@@ -942,4 +1026,21 @@ function setupListListeners() {
             if(id) openEditModal(id, 'habit');
         }
     });
+
+    // LISTENER PER LISTA IF/SE (che è separata)
+    const ifList = document.getElementById('ifList');
+    if(ifList) {
+        ifList.addEventListener('click', (e) => {
+             const btn = e.target.closest('.btn-status');
+             const editBtn = e.target.closest('.btn-edit-habit'); 
+             if (btn) {
+                e.preventDefault(); e.stopPropagation();
+                setHabitStatus(btn.dataset.id, btn.dataset.action, parseInt(btn.dataset.penalty||0));
+             }
+             if (editBtn) {
+                e.preventDefault(); e.stopPropagation();
+                openEditModal(editBtn.dataset.id, 'habit');
+             }
+        });
+    }
 }
