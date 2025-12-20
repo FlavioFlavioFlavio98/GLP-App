@@ -312,30 +312,53 @@ function renderView() {
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
     // Renderizza il Negozio (Accordion)
+// --- INIZIO DIAGNOSTICA NEGOZIO (Copia da qui) ---
     const sList = document.getElementById('shopList');
     let sListHtml = '';
-    (globalData.rewards || []).forEach((r) => {
-        try { // <--- QUESTA È LA PROTEZIONE CHE MANCAVA
-            if (r.archivedAt && viewStr >= r.archivedAt) return;
-            const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
-            const tagObj = tagsMap[r.tagId];
-            const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
-            const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
-            const count = countRewardPurchases(r.name);
-            const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
 
-            sListHtml += `
-                <div class="item" style="${borderStyle}">
-                    <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
+    // 1. Controllo se l'array esiste
+    if (!globalData.rewards) {
+        sListHtml = '<div style="padding:15px; background:darkred; color:white; border-radius:8px;">ERRORE CRITICO: Il campo "rewards" non esiste nel database per questo utente.</div>';
+    } 
+    // 2. Controllo se è vuoto
+    else if (globalData.rewards.length === 0) {
+        sListHtml = '<div style="padding:15px; background:#333; color:orange; border-radius:8px;">IL DATABASE È CONNESSO MA LA LISTA PREMI È VUOTA [ ]</div>';
+    } 
+    // 3. Se ci sono dati, li stampo in modo SEMPLIFICATO (senza filtri date/archiviazione)
+    else {
+        sListHtml += `<div style="padding:5px; font-size:0.7em; color:#666; text-align:center">DEBUG: Trovati ${globalData.rewards.length} elementi grezzi</div>`;
+        
+        globalData.rewards.forEach((r, idx) => {
+            try {
+                // Recupero manuale e sicuro dei dati per evitare crash
+                let nome = r.name || "SENZA NOME";
+                // Cerchiamo il costo: o campo diretto o nell'ultimo change
+                let costo = r.cost; 
+                if (r.changes && r.changes.length > 0) {
+                    costo = r.changes[r.changes.length - 1].cost;
+                }
+                costo = costo || 0; // Se null diventa 0
+
+                sListHtml += `
+                <div class="item" style="border-left: 4px solid #fff;">
+                    <div>
+                        <h3>${nome}</h3> 
+                        <span style="font-size:0.7em; color:#aaa">ID: ${r.id}</span>
+                        <div style="font-weight:bold; color:var(--danger)">Costo: ${costo}</div>
+                    </div>
                     <div class="actions-group">
-                            <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                            <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                        <button class="btn-main" style="padding:5px 15px; width:auto;" onclick="buyReward('${nome}', ${costo})">Compra</button>
+                        <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')">✏️</button>
                     </div>
                 </div>`;
-        } catch (err) { console.error("Errore premio scartato:", r); }
-    });
-    if(sListHtml === '') sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
+            } catch (err) {
+                sListHtml += `<div style="color:red; padding:5px;">Elemento #${idx} corrotto: ${err.message}</div>`;
+            }
+        });
+    }
+
     sList.innerHTML = sListHtml;
+    // --- FINE DIAGNOSTICA ---    
 }
 
 window.setHabitStatus = async (habitId, action, value) => {

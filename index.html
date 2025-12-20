@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V15.3</title>
+    <title>GLP V15.2</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
@@ -17,7 +17,7 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V15.3 (Stable)</div>
+    <div class="version-tag">GLP V15.2 (Stable)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -199,32 +199,13 @@
     <script type="module" src="app.js?v=15.0"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
     
-  <script>
-  function toggleAccordion(id) {
-    const panel = document.getElementById(id);
-    if (!panel) return;
-
-    const opening = !panel.classList.contains("show");
-
-    if (opening) {
-      panel.classList.add("show");
-
-      // FIX: se esiste qualche vecchio max-height/height inline (o cache PWA),
-      // il pannello risulta "aperto" ma resta invisibile. Qui lo resettiamo.
-      panel.style.display = "block";
-      panel.style.maxHeight = "none";
-      panel.style.height = "auto";
-      panel.style.overflow = "visible";
-    } else {
-      panel.classList.remove("show");
-
-      // Lasciamo che il CSS gestisca la chiusura, pulendo gli inline
-      panel.style.display = "";
-      panel.style.maxHeight = "";
-      panel.style.height = "";
-      panel.style.overflow = "";
-    }
-  }
-</script>
+    <script>
+        function toggleAccordion(id) {
+            var x = document.getElementById(id);
+            if (x) {
+                x.classList.toggle("show");
+            }
+        }
+    </script>
 </body>
 </html>
