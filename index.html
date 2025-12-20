@@ -6,18 +6,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V16.1</title>
+    <title>GLP V16.2</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css?v=16.1">
+    <link rel="stylesheet" href="style.css?v=16.2">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V16.1 (Stable Click)</div>
+    <div class="version-tag">GLP V16.2 (Performance Fix)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -37,7 +37,7 @@
         </div>
     </div>
 
-    <div class="chart-box"><canvas id="progressChart"></canvas></div>
+    <div class="chart-box" style="display:none"><canvas id="progressChart"></canvas></div>
     
     <div class="date-nav">
         <button class="date-btn" onclick="changeDate(-1)">&#8249;</button>
@@ -197,7 +197,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=16.1"></script>
+    <script type="module" src="app.js?v=16.2"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
     
     <script>

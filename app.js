@@ -31,13 +31,15 @@ let editingType = null;
 let addType = 'habit'; 
 let recurMode = 'recur';
 
+// Variabili per evitare rendering inutili
+let lastRenderedData = null; 
+
 // ==========================================
 // SEZIONE 1: HELPERS & UTILITIES
 // ==========================================
 
 window.getItemValueAtDate = (item, field, dateStr) => {
     if (!item) return 0;
-    
     if (!item.changes || item.changes.length === 0) {
         if(field === 'isMulti') return item.isMulti || false;
         if(field === 'description') return item.description || "";
@@ -48,7 +50,6 @@ window.getItemValueAtDate = (item, field, dateStr) => {
     for (let change of sortedChanges) {
         if (change.date <= dateStr) validChange = change; else break;
     }
-    
     if (validChange) {
         if(field === 'isMulti') return validChange.isMulti || false;
         if(field === 'description') return validChange.description || "";
@@ -74,13 +75,9 @@ function countRewardPurchases(rewardName) {
 
 window.toggleInputs = () => {}; 
 
-let touchStartX = 0; let touchEndX = 0;
-document.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].screenX, false);
-document.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
-function handleSwipe() {
-    if (touchEndX < touchStartX - 50) { changeDate(1); vibrate('light'); } 
-    if (touchEndX > touchStartX + 50) { changeDate(-1); vibrate('light'); } 
-}
+// --- RIMOZIONE SWIPE LOGIC ---
+// Ho rimosso i listener touchstart/touchend che causavano il conflitto coi click
+// e facevano muovere la riga. Ora il touch è gestito nativamente dal browser.
 
 window.addEventListener('online', () => document.body.classList.remove('offline'));
 window.addEventListener('offline', () => document.body.classList.add('offline'));
@@ -119,9 +116,9 @@ function startListeners() {
                 document.getElementById(`score-${u}`).innerText = userData.score;
                 if(u === currentUser) { 
                     globalData = userData; 
-                    scheduleRenderView(); 
+                    scheduleRenderView();
+                    // NOTA: Ho rimosso updateMultiChart() da qui per non bloccare l'app
                 }
-                updateMultiChart();
             }
         });
     });
@@ -131,13 +128,13 @@ function startListeners() {
 // SEZIONE 3: CORE LOGIC (RENDER & STATUS)
 // ==========================================
 
-// FIX STABILITA' CLICK: Aggiunto setTimeout per evitare rendering multipli in millisecondi
 let _renderTimer = null;
 function scheduleRenderView() {
+    // Debounce ridotto: l'interfaccia deve essere reattiva
     if(_renderTimer) clearTimeout(_renderTimer);
     _renderTimer = setTimeout(() => {
         requestAnimationFrame(renderView);
-    }, 100); // Aspetta 100ms di "quiete" prima di ridisegnare
+    }, 50); 
 }
 
 window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); }
@@ -272,14 +269,12 @@ function renderView() {
         }
     });
     
-    // Scrittura finale nel DOM
     if(visibleCount === 0) hListHtml = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
     hList.innerHTML = hListHtml;
 
     if(ifCount === 0) ifListHtml = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
     ifList.innerHTML = ifListHtml;
     
-    // Acquisti
     let purchaseCost = 0;
     const pList = document.getElementById('purchasedList'); 
     let pListHtml = '';
@@ -303,15 +298,12 @@ function renderView() {
     netEl.className = 'sum-val'; 
     if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
 
-    // Chiamata sicura alla funzione (ora esiste in fondo al file!)
     if (typeof updateProgressCircle === 'function') {
         updateProgressCircle(dailyEarned, dailyTotalPot);
     }
 
-    // Renderizza il Negozio (Lista Fissa)
     const sList = document.getElementById('shopList');
     let sListHtml = '';
-    
     const rewards = globalData.rewards || [];
     if(rewards.length === 0) {
         sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
@@ -341,6 +333,9 @@ function renderView() {
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
+    // CLICK FEEDBACK IMMEDIATO
+    vibrate('light');
+
     const dateStr = getDateString(viewDate);
     const ref = doc(db, "users", currentUser);
     let dailyLogs = globalData.dailyLogs || {};
@@ -399,7 +394,7 @@ window.setHabitStatus = async (habitId, action, value) => {
     dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, habitLevels: currentLevels, purchases: entry.purchases || [] };
     await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs, habits: habitsArr });
     logHistory(currentUser, globalData.score);
-    vibrate('light');
+    
     if(actionType === 'done') {
         if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
         showToast("Completata!", "✅");
@@ -441,6 +436,7 @@ window.refundPurchase = async (idx, cost) => {
     vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
+// --- CHART AGGIORNATO: Viene chiamato SOLO quando apri il modale
 window.updateDetailedChart = (days) => {
     if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { console.log("Dati non pronti"); return; }
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
@@ -510,7 +506,11 @@ window.updateDetailedChart = (days) => {
         }
     });
 }
-window.openAnalytics = () => { if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } document.getElementById('analyticsModal').style.display = 'flex'; updateDetailedChart(30); }
+window.openAnalytics = () => { 
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } 
+    document.getElementById('analyticsModal').style.display = 'flex'; 
+    updateDetailedChart(30); // Carica il grafico SOLO ORA
+}
 
 window.openStats = () => {
     if (!globalData || !globalData.dailyLogs) return;
@@ -805,20 +805,9 @@ window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code =
 function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
 window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
 async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
-function updateMultiChart() { 
-    const ctx = document.getElementById('progressChart').getContext('2d'); const labels = []; const dates = []; 
-    for(let i=14; i>=0; i--) { const d = new Date(); d.setDate(d.getDate() - i); dates.push(d.toISOString().split('T')[0]); labels.push(`${d.getDate()}/${d.getMonth()+1}`); } 
-    const getDailyNetPoints = (userData) => { 
-        if(!userData || !userData.dailyLogs) return new Array(15).fill(0); 
-        return dates.map(date => { 
-            const entry = userData.dailyLogs[date]; if(!entry) return 0; let doneArr = [], failedArr = [], purchases = []; 
-            if (Array.isArray(entry)) { doneArr = entry; } else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; } 
-            let net = 0; doneArr.forEach(hId => { const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) { const isM = window.getItemValueAtDate(h, 'isMulti', date); const rMin = window.getItemValueAtDate(h, 'rewardMin', date); const rMax = window.getItemValueAtDate(h, 'reward', date); let lvl = (entry.habitLevels || {})[hId] || 'max'; if(isM && lvl === 'min') net += rMin; else net += rMax; } }); failedArr.forEach(hId => { const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) net -= window.getItemValueAtDate(h, 'penalty', date); }); let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0); return net - spent; 
-        }); 
-    }; 
-    const flavioPoints = getDailyNetPoints(allUsersData.flavio); const simonaPoints = getDailyNetPoints(allUsersData.simona); 
-    if(chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } } }); 
-}
+
+// NOTA: updateMultiChart() rimosso dal ciclo di render principale. 
+// Ora il grafico in alto (circle) è gestito da updateProgressCircle.
 
 function updateProgressCircle(earned, total) {
     const circle = document.getElementById('prog-circle');
