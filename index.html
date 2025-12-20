@@ -6,18 +6,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V16.5</title>
+    <title>GLP V16.6</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css?v=16.5">
+    <link rel="stylesheet" href="style.css?v=16.6">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-    <div class="version-tag">GLP V16.5 (Final Fixes)</div>
+    <div class="version-tag">GLP V16.6 (Date & Layout Fix)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -98,7 +98,8 @@
             </div>
             <input type="text" id="newName" placeholder="Nome">
             <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
-            <input type="text" id="newDesc" placeholder="Breve descrizione (Es. Min: 5 pag | Max: 1 cap)" class="full" style="display:none; font-size:0.9em">
+            
+            <input type="text" id="newDesc" placeholder="Descrizione (opzionale)" class="full" style="font-size:0.9em; margin-bottom:10px;">
 
             <div id="habitInputs">
                 <div style="margin:15px 0; display:flex; align-items:center; gap:10px; background:#2a2a2a; padding:10px; border-radius:8px;">
@@ -211,7 +212,7 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=16.5"></script>
+    <script type="module" src="app.js?v=16.6"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
     
     <script>

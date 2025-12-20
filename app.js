@@ -175,6 +175,10 @@ function renderView() {
             if (h.archivedAt && viewStr >= h.archivedAt) return;
             if (h.type === 'single' && h.targetDate !== viewStr) return;
 
+            // FIX: Filtro temporale (Non mostrare se non ancora nata)
+            const createdDate = (h.changes && h.changes.length > 0) ? h.changes[0].date : '2020-01-01';
+            if (viewStr < createdDate) return;
+
             const isDone = doneHabits.includes(stableId);
             const isFailed = failedHabits.includes(stableId);
             const freq = h.frequency || 1; 
@@ -233,7 +237,6 @@ function renderView() {
                 let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
                 
                 // Bottoni preparati per la Delegation
-                // FIX BUG 1: Aggiunto btn-edit-habit anche qui
                 const btnEditHtml = `<button class="btn-icon-minimal btn-edit-habit" data-id="${h.id}"><span class="material-icons-round" style="font-size:18px">edit</span></button>`;
                 
                 const failBtn = isIfHabit 
@@ -314,19 +317,33 @@ function renderView() {
         rewards.forEach((r) => {
             try {
                 if (r.archivedAt && viewStr >= r.archivedAt) return;
+                
+                // Descrizione da oggetto o storico (se implementato)
+                const desc = r.description || window.getItemValueAtDate(r, 'description', viewStr);
                 const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
                 const tagObj = tagsMap[r.tagId];
                 const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
                 const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
                 const count = countRewardPurchases(r.name);
-                const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
+                
+                // FIX LAYOUT: Descrizione a sinistra, Contatore a destra sotto bottoni
+                const countHtml = count > 0 ? `<span class="shop-count" style="margin:0; font-size:0.7em; opacity:0.6;">Acquistato ${count} volte</span>` : '';
+                const descHtml = desc ? `<div class="item-desc" style="margin-top:2px;">${desc}</div>` : '';
 
                 sListHtml += `
                     <div class="item" style="${borderStyle}">
-                        <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
-                        <div class="actions-group">
+                        <div>
+                            <h3>${r.name}</h3>
+                            ${tagHtml}
+                            ${descHtml}
+                            <div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div>
+                        </div>
+                        <div class="actions-group" style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
                                 <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
                                 <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                            </div>
+                            ${countHtml}
                         </div>
                     </div>`;
             } catch(e) { console.error("Err reward", e); }
@@ -606,12 +623,11 @@ window.openStats = () => {
 }
 
 window.toggleMultiInput = (prefix) => {
+    // FIX: Non tocca più la descrizione (che è sempre visibile)
     const isMulti = document.getElementById(`${prefix}IsMulti`).checked;
     document.getElementById(`${prefix}MinInputGroup`).style.display = isMulti ? 'block' : 'none';
     const rewardLbl = document.getElementById(prefix === 'new' ? 'lblNewReward' : 'lblEditReward');
     rewardLbl.innerText = isMulti ? 'Reward (Max)' : 'Reward';
-    const descInput = document.getElementById(`${prefix}Desc`);
-    if(descInput) descInput.style.display = 'block'; 
 }
 
 window.setAddType = (t) => {
@@ -694,7 +710,6 @@ function renderEditHistory(item, type) {
         if (index === 0) {
             text = "Creazione iniziale";
         } else {
-            // FIX BUG 3: Se c'è una nota esplicita (nostra), non mostrare il testo tecnico
             if (change.note && change.note.includes("Modifica:")) {
                 text = "Aggiornamento valori";
             } else {
@@ -706,7 +721,6 @@ function renderEditHistory(item, type) {
     container.innerHTML = html;
 }
 
-// FIX BUG 3: Storico Intelligente (Log automatico modifiche)
 window.saveEdit = async () => {
     if(!editingItem) return;
     const newName = document.getElementById('editName').value; 
@@ -753,6 +767,8 @@ window.saveEdit = async () => {
         const cost = parseInt(document.getElementById('editCost').value) || 0; 
         newChangeEntry.cost = cost; 
         editingItem.cost = cost; 
+        // FIX: Salva descrizione per premi
+        editingItem.description = newDesc;
     }
     
     if (!editingItem.changes) {
@@ -771,7 +787,6 @@ window.saveEdit = async () => {
     document.getElementById('editModal').style.display = 'none'; editingItem = null; scheduleRenderView(); showToast("Salvato!", "✏️");
 }
 
-// FIX BUG 4: Eliminazione Definitiva
 window.deleteItemForever = async () => {
     if(!editingItem) return;
     if(!confirm("SEI SICURO? ⚠️\nQuesta azione eliminerà DEFINITIVAMENTE l'abitudine e tutto il suo storico.\nNon potrai tornare indietro.")) return;
@@ -779,7 +794,6 @@ window.deleteItemForever = async () => {
     const listName = editingType === 'habit' ? 'habits' : 'rewards';
     let list = globalData[listName];
     
-    // Filtra via l'elemento
     const newList = list.filter(i => i.id !== editingItem.id);
     
     const ref = doc(db, "users", currentUser);
@@ -794,10 +808,11 @@ window.addItem = async () => {
     let name = document.getElementById('newName').value; 
     const tag = document.getElementById('newTag').value; 
     
-    // FIX BUG 2: Data di Creazione Custom
     let startDateInput = document.getElementById('newStartDate').value;
-    // Se l'utente non mette data, usa oggi
     if (!startDateInput) startDateInput = new Date().toISOString().split('T')[0];
+
+    // FIX: Leggi la descrizione anche qui, prima del bivio
+    const desc = document.getElementById('newDesc').value || "";
 
     if(!name) { vibrate('heavy'); return; }
     
@@ -812,7 +827,6 @@ window.addItem = async () => {
             const targetDate = document.getElementById('newTargetDate').value; 
             const isMulti = document.getElementById('newIsMulti').checked; 
             const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; 
-            const desc = document.getElementById('newDesc').value || "";
             
             let finalPenalty = p;
             let finalFreq = freq;
@@ -827,7 +841,6 @@ window.addItem = async () => {
                 penalty: finalPenalty, 
                 tagId: tag, type: recurMode, 
                 isMulti: isMulti, rewardMin: rewardMin, description: desc,
-                // Inseriamo subito la storia con la data corretta
                 changes: [{
                     date: startDateInput,
                     reward: r, penalty: finalPenalty, isMulti: isMulti, rewardMin: rewardMin, description: desc,
@@ -841,9 +854,11 @@ window.addItem = async () => {
             await updateDoc(ref, { habits: arrayUnion(newHabit) });
         } else { 
             const c = document.getElementById('newCost').value || 0; 
+            
+            // FIX: Salvataggio descrizione e storico per i premi
             await updateDoc(ref, { 
                 rewards: arrayUnion({
-                    id, name, cost:c, tagId: tag,
+                    id, name, cost:c, tagId: tag, description: desc,
                     changes: [{ date: startDateInput, cost: c, note: "Creazione Iniziale" }]
                 }) 
             }); 
