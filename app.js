@@ -32,7 +32,7 @@ let addType = 'habit';
 let recurMode = 'recur';
 
 // Variabili per evitare rendering inutili
-let lastRenderedData = null; 
+let _renderTimer = null;
 
 // ==========================================
 // SEZIONE 1: HELPERS & UTILITIES
@@ -75,10 +75,6 @@ function countRewardPurchases(rewardName) {
 
 window.toggleInputs = () => {}; 
 
-// --- RIMOZIONE SWIPE LOGIC ---
-// Ho rimosso i listener touchstart/touchend che causavano il conflitto coi click
-// e facevano muovere la riga. Ora il touch è gestito nativamente dal browser.
-
 window.addEventListener('online', () => document.body.classList.remove('offline'));
 window.addEventListener('offline', () => document.body.classList.add('offline'));
 window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
@@ -94,6 +90,7 @@ initApp();
 async function initApp() {
     await checkAndCreateUser('flavio');
     await checkAndCreateUser('simona');
+    setupListListeners(); // GESTIONE CLICK STABILI
     startListeners();
 }
 
@@ -117,7 +114,6 @@ function startListeners() {
                 if(u === currentUser) { 
                     globalData = userData; 
                     scheduleRenderView();
-                    // NOTA: Ho rimosso updateMultiChart() da qui per non bloccare l'app
                 }
             }
         });
@@ -128,9 +124,7 @@ function startListeners() {
 // SEZIONE 3: CORE LOGIC (RENDER & STATUS)
 // ==========================================
 
-let _renderTimer = null;
 function scheduleRenderView() {
-    // Debounce ridotto: l'interfaccia deve essere reattiva
     if(_renderTimer) clearTimeout(_renderTimer);
     _renderTimer = setTimeout(() => {
         requestAnimationFrame(renderView);
@@ -239,9 +233,16 @@ function renderView() {
                 let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
                 let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
                 
+                // Bottoni preparati per la Delegation (senza onclick, ma con data-attributes)
+                const btnEditHtml = `<button class="btn-icon-minimal btn-edit-habit" data-id="${h.id}"><span class="material-icons-round" style="font-size:18px">edit</span></button>`;
+                
                 const failBtn = isIfHabit 
                     ? '' 
-                    : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
+                    : `<button class="btn-status failed ${isFailed?'active':''}" data-id="${stableId}" data-action="failed" data-penalty="${currentPenalty}"><span class="material-icons-round">close</span></button>`;
+
+                const actionBtn = `<button class="btn-status done ${btnClass}" data-id="${stableId}" data-action="next" data-penalty="0">
+                                ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
+                            </button>`;
 
                 const itemHtml = `
                     <div class="item ${statusClass}" style="${borderStyle}">
@@ -253,11 +254,9 @@ function renderView() {
                             </div>
                         </div>
                         <div class="actions-group">
-                            <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                            ${btnEditHtml}
                             ${failBtn}
-                            <button class="btn-status done ${btnClass}" onclick="setHabitStatus('${stableId}', 'next', 0)">
-                                ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
-                            </button>
+                            ${actionBtn}
                         </div>
                     </div>`;
                 
@@ -298,10 +297,15 @@ function renderView() {
     netEl.className = 'sum-val'; 
     if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
 
+    // Aggiornamento Grafici
     if (typeof updateProgressCircle === 'function') {
         updateProgressCircle(dailyEarned, dailyTotalPot);
     }
+    if (typeof updateMultiChart === 'function') {
+        updateMultiChart();
+    }
 
+    // Shop
     const sList = document.getElementById('shopList');
     let sListHtml = '';
     const rewards = globalData.rewards || [];
@@ -330,22 +334,9 @@ function renderView() {
         });
     }
     sList.innerHTML = sListHtml;
-// ... codice precedente dentro renderView ...
-
-    // Aggiorna il cerchio percentuale
-    if (typeof updateProgressCircle === 'function') {
-        updateProgressCircle(dailyEarned, dailyTotalPot);
-    }
-    
-    // --- AGGIUNGI QUESTA RIGA QUI SOTTO: ---
-    updateMultiChart(); // Disegna il grafico andamento
-    
-    // ... codice della lista premi ...
-}
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
-    // CLICK FEEDBACK IMMEDIATO
     vibrate('light');
 
     const dateStr = getDateString(viewDate);
@@ -448,7 +439,6 @@ window.refundPurchase = async (idx, cost) => {
     vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
-// --- CHART AGGIORNATO: Viene chiamato SOLO quando apri il modale
 window.updateDetailedChart = (days) => {
     if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { console.log("Dati non pronti"); return; }
     document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
@@ -521,7 +511,7 @@ window.updateDetailedChart = (days) => {
 window.openAnalytics = () => { 
     if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } 
     document.getElementById('analyticsModal').style.display = 'flex'; 
-    updateDetailedChart(30); // Carica il grafico SOLO ORA
+    updateDetailedChart(30); 
 }
 
 window.openStats = () => {
@@ -818,9 +808,7 @@ function applyTheme(user) { const root = document.documentElement; if (user === 
 window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
 async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
 
-// NOTA: updateMultiChart() rimosso dal ciclo di render principale. 
-// Ora il grafico in alto (circle) è gestito da updateProgressCircle.
-
+// --- FUNZIONE CERCHIO PERCENTUALE ---
 function updateProgressCircle(earned, total) {
     const circle = document.getElementById('prog-circle');
     const text = document.getElementById('prog-text');
@@ -836,6 +824,7 @@ function updateProgressCircle(earned, total) {
     circle.style.strokeDashoffset = offset;
     text.innerText = Math.round(percent) + '%';
 }
+
 // --- FUNZIONE GRAFICO HOMEPAGE (Ultimi 10 GG) ---
 function updateMultiChart() { 
     const ctx = document.getElementById('progressChart');
@@ -919,4 +908,38 @@ function updateMultiChart() {
             } 
         } 
     }); 
+}
+
+// --- NUOVA FUNZIONE PER GESTIONE CLICK STABILI ---
+function setupListListeners() {
+    const list = document.getElementById('habitList');
+    if(!list) return;
+
+    list.addEventListener('click', (e) => {
+        // Cerchiamo se il click è avvenuto su un bottone o un suo figlio (icona)
+        const btn = e.target.closest('.btn-status');
+        const editBtn = e.target.closest('.btn-edit-habit'); // Per la matita
+
+        // CASO 1: Click sulla spunta (Fatto/Min/Fail)
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation(); // Ferma altri eventi
+            
+            const id = btn.dataset.id;
+            const action = btn.dataset.action; // 'next' o 'failed'
+            const penalty = parseInt(btn.dataset.penalty || 0);
+            
+            if(id && action) {
+                setHabitStatus(id, action, penalty);
+            }
+        }
+        
+        // CASO 2: Click sulla matita (Edit)
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = editBtn.dataset.id;
+            if(id) openEditModal(id, 'habit');
+        }
+    });
 }
