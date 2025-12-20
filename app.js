@@ -131,13 +131,13 @@ function startListeners() {
 // SEZIONE 3: CORE LOGIC (RENDER & STATUS)
 // ==========================================
 
-let _renderRaf = null;
+// FIX STABILITA' CLICK: Aggiunto setTimeout per evitare rendering multipli in millisecondi
+let _renderTimer = null;
 function scheduleRenderView() {
-    if(_renderRaf) cancelAnimationFrame(_renderRaf);
-    _renderRaf = requestAnimationFrame(() => {
-        renderView();
-        _renderRaf = null;
-    });
+    if(_renderTimer) clearTimeout(_renderTimer);
+    _renderTimer = setTimeout(() => {
+        requestAnimationFrame(renderView);
+    }, 100); // Aspetta 100ms di "quiete" prima di ridisegnare
 }
 
 window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); }
@@ -820,30 +820,18 @@ function updateMultiChart() {
     if(chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } } }); 
 }
 
-// --- FUNZIONE CHE MANCAVA (Incolla in fondo a app.js) ---
 function updateProgressCircle(earned, total) {
     const circle = document.getElementById('prog-circle');
     const text = document.getElementById('prog-text');
     if (!circle || !text) return;
-    
-    // Calcolo circonferenza
     const radius = circle.r.baseVal.value;
     const circumference = radius * 2 * Math.PI;
-    
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    
-    // Evitiamo divisione per zero
     let percent = 0;
-    if (total > 0) {
-        percent = (earned / total) * 100;
-    }
-    
-    // Limiamo tra 0 e 100
+    if (total > 0) percent = (earned / total) * 100;
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
-
     const offset = circumference - (percent / 100) * circumference;
-    
     circle.style.strokeDashoffset = offset;
     text.innerText = Math.round(percent) + '%';
 }
