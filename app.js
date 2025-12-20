@@ -18,31 +18,8 @@ const db = getFirestore(app);
 let currentUser = localStorage.getItem('glp_user') || 'flavio';
 let globalData = null;
 let allUsersData = { flavio: null, simona: null };
-let viewDate = new Date();
-const APP_VERSION = '14.8'; 
+let viewDate = new Date(); 
 let chartInstance = null;
-
-// ===== Performance (V14.6): batch render/chart updates =====
-let _renderRaf = null;
-function scheduleRenderView(){
-    if(_renderRaf) return;
-    _renderRaf = requestAnimationFrame(() => {
-        _renderRaf = null;
-        if(globalData) renderView();
-    });
-}
-
-let _chartRaf = null;
-function scheduleChartUpdate(){
-    if(_chartRaf) return;
-    _chartRaf = requestAnimationFrame(() => {
-        _chartRaf = null;
-        updateMultiChart();
-    });
-}
-
-const _pendingActions = new Set();
-
 let detailedChartInstance = null;
 let pieChartInstance = null;
 let pendingArchiveId = null;
@@ -59,6 +36,9 @@ let recurMode = 'recur';
 // ==========================================
 
 window.getItemValueAtDate = (item, field, dateStr) => {
+    // Sicurezza: se item è nullo, ritorna 0 per evitare crash
+    if (!item) return 0;
+    
     if (!item.changes || item.changes.length === 0) {
         if(field === 'isMulti') return item.isMulti || false;
         if(field === 'description') return item.description || "";
@@ -69,6 +49,7 @@ window.getItemValueAtDate = (item, field, dateStr) => {
     for (let change of sortedChanges) {
         if (change.date <= dateStr) validChange = change; else break;
     }
+    
     if (validChange) {
         if(field === 'isMulti') return validChange.isMulti || false;
         if(field === 'description') return validChange.description || "";
@@ -137,8 +118,11 @@ function startListeners() {
                 const userData = d.data();
                 allUsersData[u] = userData;
                 document.getElementById(`score-${u}`).innerText = userData.score;
-                if(u === currentUser) { globalData = userData; scheduleRenderView(); }
-                scheduleChartUpdate();
+                if(u === currentUser) { 
+                    globalData = userData; 
+                    scheduleRenderView(); // Usa il render ottimizzato
+                }
+                updateMultiChart();
             }
         });
     });
@@ -148,8 +132,17 @@ function startListeners() {
 // SEZIONE 3: CORE LOGIC (RENDER & STATUS)
 // ==========================================
 
-window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); scheduleChartUpdate(); }
-window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); scheduleRenderView(); scheduleChartUpdate(); } }
+let _renderRaf = null;
+function scheduleRenderView() {
+    if(_renderRaf) cancelAnimationFrame(_renderRaf);
+    _renderRaf = requestAnimationFrame(() => {
+        renderView();
+        _renderRaf = null;
+    });
+}
+
+window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); }
+window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); scheduleRenderView(); } }
 function getDateString(date) { return date.toISOString().split('T')[0]; }
 
 function renderView() {
@@ -177,7 +170,7 @@ function renderView() {
     const hList = document.getElementById('habitList');
     const ifList = document.getElementById('ifList');
     
-    // Performance optimization: Build strings first
+    // Performance: Creiamo stringhe HTML invece di appendere al DOM ogni volta
     let hListHtml = '';
     let ifListHtml = '';
     
@@ -188,94 +181,104 @@ function renderView() {
     (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
 
     (globalData.habits || []).forEach((h) => {
-        const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
-        
-        if (h.archivedAt && viewStr >= h.archivedAt) return;
-        if (h.type === 'single' && h.targetDate !== viewStr) return;
+        try {
+            // FIX CRITICO: Supporto per ID vecchi (fallback su name)
+            const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+            
+            if (h.archivedAt && viewStr >= h.archivedAt) return;
+            if (h.type === 'single' && h.targetDate !== viewStr) return;
 
-        const isDone = doneHabits.includes(stableId);
-        const isFailed = failedHabits.includes(stableId);
-        const freq = h.frequency || 1; 
-        
-        const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
-        const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
-        const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
-        const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
-        const description = window.getItemValueAtDate(h, 'description', viewStr);
+            const isDone = doneHabits.includes(stableId);
+            const isFailed = failedHabits.includes(stableId);
+            const freq = h.frequency || 1; 
+            
+            const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
+            const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
+            const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
+            const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
+            const description = window.getItemValueAtDate(h, 'description', viewStr);
 
-        let isIfHabit = (h.type === 'if');
+            // Gestione IF habits
+            let isIfHabit = (h.type === 'if');
 
-        let shouldShow = true;
-        let daysLeft = 0;
-        
-        if (!isIfHabit && h.type !== 'single' && freq > 1) {
-            if (isDone || isFailed) { shouldShow = true; } else {
-                if (h.lastDone) {
-                    const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
-                    if (diffDays < freq && diffDays >= 0) { shouldShow = false; daysLeft = freq - diffDays; }
+            let shouldShow = true;
+            
+            // Logica ricorrenza (solo se non è IF e non è single)
+            if (!isIfHabit && h.type !== 'single' && freq > 1) {
+                if (isDone || isFailed) { shouldShow = true; } else {
+                    if (h.lastDone) {
+                        const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
+                        if (diffDays < freq && diffDays >= 0) { shouldShow = false; }
+                    }
                 }
             }
-        }
 
-        if (shouldShow) {
-            if (!isIfHabit) { visibleCount++; dailyTotalPot += currentReward; } 
-            else { ifCount++; }
-            
-            if(isDone) {
-                let level = habitLevels[stableId] || 'max'; 
-                if (isMulti && level === 'min') dailyEarned += currentRewardMin;
-                else dailyEarned += currentReward;
-            }
-            if(isFailed) dailySpent += currentPenalty; 
+            if (shouldShow) {
+                if (!isIfHabit) {
+                    visibleCount++;
+                    dailyTotalPot += currentReward; 
+                } else {
+                    ifCount++;
+                }
+                
+                if(isDone) {
+                    let level = habitLevels[stableId] || 'max'; 
+                    if (isMulti && level === 'min') dailyEarned += currentRewardMin;
+                    else dailyEarned += currentReward;
+                }
+                if(isFailed) dailySpent += currentPenalty; 
 
-            const tagObj = tagsMap[h.tagId];
-            const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
-            const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
-            
-            let streakHtml = '';
-            if (isToday && !isIfHabit) {
-                const s = calculateStreak(stableId);
-                if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
-            }
+                const tagObj = tagsMap[h.tagId];
+                const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                
+                let streakHtml = '';
+                if (isToday && !isIfHabit) {
+                    const s = calculateStreak(stableId);
+                    if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
+                }
 
-            let btnClass = ''; let btnIcon = 'check'; let btnText = '';
-            if (isDone) {
-                let level = habitLevels[stableId] || 'max';
-                if (isMulti && level === 'min') { btnClass = 'min active'; btnText = 'MIN'; btnIcon = ''; } 
-                else { btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; }
-            }
+                let btnClass = ''; let btnIcon = 'check'; let btnText = '';
+                if (isDone) {
+                    let level = habitLevels[stableId] || 'max';
+                    if (isMulti && level === 'min') { btnClass = 'min'; btnText = 'MIN'; btnIcon = ''; } 
+                    else { btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; }
+                }
 
-            let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
-            let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
-            
-            const failBtn = isIfHabit 
-                ? '' 
-                : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
+                let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
+                let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
+                
+                const failBtn = isIfHabit 
+                    ? '' 
+                    : `<button class="btn-status failed ${isFailed?'active':''}" onclick="setHabitStatus('${stableId}', 'failed', ${currentPenalty})"><span class="material-icons-round">close</span></button>`;
 
-            const itemHtml = `
-                <div class="item ${statusClass}" style="${borderStyle}">
-                    <div>
-                        <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
-                        ${descHtml}
-                        <div class="vals">
-                            <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> ${isIfHabit ? '' : `/ <span class="val-badge minus">-${currentPenalty}</span>`}
+                const itemHtml = `
+                    <div class="item ${statusClass}" style="${borderStyle}">
+                        <div>
+                            <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
+                            ${descHtml}
+                            <div class="vals">
+                                <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> ${isIfHabit ? '' : `/ <span class="val-badge minus">-${currentPenalty}</span>`}
+                            </div>
                         </div>
-                    </div>
-                    <div class="actions-group">
-                        <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
-                        ${failBtn}
-                        <button class="btn-status done ${btnClass}" onclick="setHabitStatus('${stableId}', 'next', 0)">
-                             ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
-                        </button>
-                    </div>
-                </div>`;
-            
-            if(isIfHabit) ifListHtml += itemHtml;
-            else hListHtml += itemHtml;
-        } 
+                        <div class="actions-group">
+                            <button class="btn-icon-minimal" onclick="openEditModal('${h.id}', 'habit')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                            ${failBtn}
+                            <button class="btn-status done ${btnClass}" onclick="setHabitStatus('${stableId}', 'next', 0)">
+                                ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
+                            </button>
+                        </div>
+                    </div>`;
+                
+                if(isIfHabit) ifListHtml += itemHtml;
+                else hListHtml += itemHtml;
+            } 
+        } catch(err) {
+            console.error("Errore render abitudine:", h, err);
+        }
     });
     
-    // Write HTML only once (Performance Fix)
+    // Scrittura finale nel DOM
     if(visibleCount === 0) hListHtml = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
     hList.innerHTML = hListHtml;
 
@@ -286,7 +289,7 @@ function renderView() {
     let purchaseCost = 0;
     const pList = document.getElementById('purchasedList'); 
     let pListHtml = '';
-    
+
     if(todaysPurchases.length === 0) { pListHtml = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
     else {
         todaysPurchases.forEach((p, idx) => {
@@ -308,7 +311,7 @@ function renderView() {
 
     updateProgressCircle(dailyEarned, dailyTotalPot);
 
-    // REWARD SHOP RENDER
+    // Renderizza il Negozio (Accordion)
     const sList = document.getElementById('shopList');
     let sListHtml = '';
     (globalData.rewards || []).forEach((r) => {
@@ -329,17 +332,12 @@ function renderView() {
                 </div>
             </div>`;
     });
-    // Se vuoto o se ci sono dati, scriviamo tutto in un colpo solo
     if(sListHtml === '') sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
     sList.innerHTML = sListHtml;
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
     const dateStr = getDateString(viewDate);
-    const _key = `habit|${dateStr}|${habitId}|${action}|${value||''}`;
-    if (_pendingActions.has(_key)) return;
-    _pendingActions.add(_key);
-    try {
     const ref = doc(db, "users", currentUser);
     let dailyLogs = globalData.dailyLogs || {};
     let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], habitLevels: {}, purchases: [] };
@@ -395,22 +393,13 @@ window.setHabitStatus = async (habitId, action, value) => {
     }
 
     dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, habitLevels: currentLevels, purchases: entry.purchases || [] };
-    scheduleRenderView();
-    scheduleChartUpdate();
-    await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs });
+    await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs, habits: habitsArr });
     logHistory(currentUser, globalData.score);
     vibrate('light');
     if(actionType === 'done') {
         if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
         showToast("Completata!", "✅");
     } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
-
-    } catch (e) {
-        console.error("setHabitStatus error:", e);
-        showToast("Errore, riprova", "⚠️");
-    } finally {
-        _pendingActions.delete(_key);
-    }
 };
 
 window.buyReward = async (name, cost) => {
@@ -609,10 +598,6 @@ window.openStats = () => {
     `;
     document.getElementById('statsContent').innerHTML = html;
     document.getElementById('statsModal').style.display = 'flex';
-    } finally {
-        _pendingActions.delete(_key);
-    }
-
 }
 
 window.toggleMultiInput = (prefix) => {
@@ -736,7 +721,7 @@ window.saveEdit = async () => {
     editingItem.changes = editingItem.changes.filter(c => c.date !== editDate); editingItem.changes.push(newChangeEntry); editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
     const ref = doc(db, "users", currentUser);
     if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits }); else await updateDoc(ref, { rewards: globalData.rewards });
-    document.getElementById('editModal').style.display = 'none'; editingItem = null; renderView(); showToast("Salvato!", "✏️");
+    document.getElementById('editModal').style.display = 'none'; editingItem = null; scheduleRenderView(); showToast("Salvato!", "✏️");
 }
 
 window.addItem = async () => {
@@ -816,102 +801,17 @@ window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code =
 function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
 window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
 async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
-function updateMultiChart() {
-    const canvas = document.getElementById('progressChart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    const days = 15;
-    const labels = [];
-    const dates = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const iso = d.toISOString().split('T')[0];
-        dates.push(iso);
-        labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
-    }
-
-    const calcNetSeries = (userData) => {
-        if (!userData || !userData.dailyLogs) return new Array(days).fill(0);
-
-        return dates.map(date => {
-            const entry = userData.dailyLogs[date];
-            if (!entry) return 0;
-
-            let doneArr = [];
-            let failedArr = [];
-            let purchases = [];
-
-            if (Array.isArray(entry)) {
-                doneArr = entry;
-            } else {
-                doneArr = entry.habits || [];
-                failedArr = entry.failedHabits || [];
-                purchases = entry.purchases || [];
-            }
-
-            let net = 0;
-
-            // Earned
-            doneArr.forEach(hId => {
-                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
-                if (!h) return;
-
-                const isMulti = window.getItemValueAtDate(h, 'isMulti', date);
-                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
-                const rMax = window.getItemValueAtDate(h, 'reward', date);
-
-                const lvl = (entry && !Array.isArray(entry) && entry.habitLevels && entry.habitLevels[hId]) ? entry.habitLevels[hId] : 'max';
-                net += (isMulti && lvl === 'min') ? rMin : rMax;
-            });
-
-            // Penalties
-            failedArr.forEach(hId => {
-                const h = (userData.habits || []).find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
-                if (!h) return;
-                const p = window.getItemValueAtDate(h, 'penalty', date);
-                net -= p;
-            });
-
-            // Spent
-            const spent = purchases.reduce((acc, p) => acc + parseInt(p.cost || 0), 0);
-            return net - spent;
-        });
-    };
-
-    const flavioPoints = calcNetSeries(allUsersData.flavio);
-    const simonaPoints = calcNetSeries(allUsersData.simona);
-
-    const data = {
-        labels,
-        datasets: [
-            { label: 'Flavio', data: flavioPoints, tension: 0.25, fill: false },
-            { label: 'Simona', data: simonaPoints, tension: 0.25, fill: false }
-        ]
-    };
-
-    const options = {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-            legend: { display: true, labels: { color: '#aaa' } },
-            tooltip: { enabled: true }
-        },
-        scales: {
-            x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { display: false } },
-            y: { beginAtZero: false, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }
-        }
-    };
-
-    if (!chartInstance) {
-        chartInstance = new Chart(ctx, { type: 'line', data, options });
-    } else {
-        chartInstance.data = data;
-        chartInstance.options = options;
-        chartInstance.update('none');
-    }
+function updateMultiChart() { 
+    const ctx = document.getElementById('progressChart').getContext('2d'); const labels = []; const dates = []; 
+    for(let i=14; i>=0; i--) { const d = new Date(); d.setDate(d.getDate() - i); dates.push(d.toISOString().split('T')[0]); labels.push(`${d.getDate()}/${d.getMonth()+1}`); } 
+    const getDailyNetPoints = (userData) => { 
+        if(!userData || !userData.dailyLogs) return new Array(15).fill(0); 
+        return dates.map(date => { 
+            const entry = userData.dailyLogs[date]; if(!entry) return 0; let doneArr = [], failedArr = [], purchases = []; 
+            if (Array.isArray(entry)) { doneArr = entry; } else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; } 
+            let net = 0; doneArr.forEach(hId => { const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) { const isM = window.getItemValueAtDate(h, 'isMulti', date); const rMin = window.getItemValueAtDate(h, 'rewardMin', date); const rMax = window.getItemValueAtDate(h, 'reward', date); let lvl = (entry.habitLevels || {})[hId] || 'max'; if(isM && lvl === 'min') net += rMin; else net += rMax; } }); failedArr.forEach(hId => { const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); if(h) net -= window.getItemValueAtDate(h, 'penalty', date); }); let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0); return net - spent; 
+        }); 
+    }; 
+    const flavioPoints = getDailyNetPoints(allUsersData.flavio); const simonaPoints = getDailyNetPoints(allUsersData.simona); 
+    if(chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } } }); 
 }

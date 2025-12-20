@@ -6,25 +6,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#121212">
-    <title>GLP V14.8 | If Habits</title>
+    <title>GLP V15.0</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
-    <link rel="stylesheet" href="style.css?v=14.8">
+    <link rel="stylesheet" href="style.css?v=15.0">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
-<div id="debug-error" style="background:red; color:white; padding:10px; display:none;"></div>
-<script>
-window.onerror = function(msg, url, line) {
-   document.getElementById('debug-error').style.display = 'block';
-   document.getElementById('debug-error').innerHTML = "ERRORE: " + msg + " (Riga " + line + ")";
-};
-</script>
-    <div class="version-tag">GLP V14.8 (If Habits)</div>
+    <div class="version-tag">GLP V15.0 (Stable)</div>
     <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
     <div class="identity-bar">
@@ -71,7 +64,7 @@ window.onerror = function(msg, url, line) {
         <h2>ABITUDINI DEL GIORNO</h2>
         <div id="habitList"></div>
         
-        <button class="accordion" onclick="toggleAccordion('ifPanel', this)"><span>🤷‍♂️ Abitudini Se/If (Bonus)</span><span class="material-icons-round">expand_more</span></button>
+        <button class="accordion" onclick="toggleAccordion('ifPanel')"><span>🤷‍♂️ Abitudini Se/If (Bonus)</span><span class="material-icons-round">expand_more</span></button>
         <div class="panel" id="ifPanel">
             <div id="ifList"></div>
         </div>
@@ -79,7 +72,7 @@ window.onerror = function(msg, url, line) {
         <h2>ACQUISTI DEL GIORNO</h2>
         <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
 
-        <button class="accordion" onclick="toggleAccordion('shopPanel', this)" style="margin-top:20px"><span>🛍️ Negozio Premi</span><span class="material-icons-round">expand_more</span></button>
+        <button class="accordion" onclick="toggleAccordion('shopPanel')" style="margin-top:20px"><span>🛍️ Negozio Premi</span><span class="material-icons-round">expand_more</span></button>
         <div class="panel" id="shopPanel">
             <div id="shopList"></div>
         </div>
@@ -198,7 +191,7 @@ window.onerror = function(msg, url, line) {
             <div style="flex:1; position:relative; min-height:0;"><canvas id="detailedChart"></canvas></div>
             <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
                 <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
-                    <strong id="nodeDate" style="color:var(--text)">--</strong>
+                    <strong id=\"nodeDate\" style="color:var(--text)">--</strong>
                     <div><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div>
                 </div>
                 <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div>
@@ -206,24 +199,16 @@ window.onerror = function(msg, url, line) {
         </div>
     </div>
 
-    <script type="module" src="app.js?v=14.8"></script>
+    <script type="module" src="app.js?v=15.0"></script>
     <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
-<script>
-    function toggleAccordion(id, btn) {
-        const panel = document.getElementById(id);
-        if (!panel) return;
-
-        const willOpen = !panel.classList.contains('show');
-        panel.classList.toggle('show', willOpen);
-
-        // FIX: evita pannello "aperto ma altezza 0" se c'è qualche inline style rimasto da vecchie versioni
-        if (willOpen) {
-            panel.style.maxHeight = '';
-            panel.style.height = '';
+    
+    <script>
+        function toggleAccordion(id) {
+            var x = document.getElementById(id);
+            if (x) {
+                x.classList.toggle("show");
+            }
         }
-
-        if (btn) btn.classList.toggle('active', willOpen);
-    }
-</script>
+    </script>
 </body>
 </html>
