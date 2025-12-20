@@ -330,6 +330,18 @@ function renderView() {
         });
     }
     sList.innerHTML = sListHtml;
+// ... codice precedente dentro renderView ...
+
+    // Aggiorna il cerchio percentuale
+    if (typeof updateProgressCircle === 'function') {
+        updateProgressCircle(dailyEarned, dailyTotalPot);
+    }
+    
+    // --- AGGIUNGI QUESTA RIGA QUI SOTTO: ---
+    updateMultiChart(); // Disegna il grafico andamento
+    
+    // ... codice della lista premi ...
+}
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
@@ -823,4 +835,88 @@ function updateProgressCircle(earned, total) {
     const offset = circumference - (percent / 100) * circumference;
     circle.style.strokeDashoffset = offset;
     text.innerText = Math.round(percent) + '%';
+}
+// --- FUNZIONE GRAFICO HOMEPAGE (Ultimi 10 GG) ---
+function updateMultiChart() { 
+    const ctx = document.getElementById('progressChart');
+    if(!ctx) return;
+    
+    // Se i dati non sono pronti, esci
+    if(!allUsersData.flavio || !allUsersData.simona) return;
+
+    const context = ctx.getContext('2d'); 
+    const labels = []; 
+    const dates = []; 
+    
+    // Ultimi 10 giorni
+    for(let i=9; i>=0; i--) { 
+        const d = new Date(); 
+        d.setDate(d.getDate() - i); 
+        dates.push(d.toISOString().split('T')[0]); 
+        labels.push(`${d.getDate()}/${d.getMonth()+1}`); 
+    } 
+
+    const getDailyNetPoints = (userData) => { 
+        if(!userData || !userData.dailyLogs) return new Array(10).fill(0); 
+        return dates.map(date => { 
+            const entry = userData.dailyLogs[date]; 
+            if(!entry) return 0; 
+            
+            let doneArr = [], failedArr = [], purchases = []; 
+            if (Array.isArray(entry)) { doneArr = entry; } 
+            else { 
+                doneArr = entry.habits || []; 
+                failedArr = entry.failedHabits || []; 
+                purchases = entry.purchases || []; 
+            } 
+            
+            let net = 0; 
+            // Calcolo Guadagni
+            doneArr.forEach(hId => { 
+                const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); 
+                if(h) { 
+                    const isM = window.getItemValueAtDate(h, 'isMulti', date); 
+                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date); 
+                    const rMax = window.getItemValueAtDate(h, 'reward', date); 
+                    let lvl = (entry.habitLevels || {})[hId] || 'max'; 
+                    if(isM && lvl === 'min') net += rMin; else net += rMax; 
+                } 
+            }); 
+            // Calcolo Penalità
+            failedArr.forEach(hId => { 
+                const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); 
+                if(h) net -= window.getItemValueAtDate(h, 'penalty', date); 
+            }); 
+            // Calcolo Spese
+            let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0); 
+            
+            return net - spent; 
+        }); 
+    }; 
+
+    const flavioPoints = getDailyNetPoints(allUsersData.flavio); 
+    const simonaPoints = getDailyNetPoints(allUsersData.simona); 
+
+    if(chartInstance) chartInstance.destroy(); 
+    
+    chartInstance = new Chart(context, { 
+        type: 'line', 
+        data: { 
+            labels: labels, 
+            datasets: [ 
+                { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.3, pointRadius: 3, borderWidth: 2 }, 
+                { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.3, pointRadius: 3, borderWidth: 2 } 
+            ] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: false, // Disabilito animazione per massime prestazioni
+            plugins: { legend: { display: false } }, // Legenda nascosta per pulizia
+            scales: { 
+                y: { grid: { color: '#333' }, ticks: { color: '#666', font:{size:10} }, beginAtZero: true }, 
+                x: { grid: { display: false }, ticks: { color: '#666', font:{size:10} } } 
+            } 
+        } 
+    }); 
 }
