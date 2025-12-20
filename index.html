@@ -72,9 +72,13 @@
         <h2>ACQUISTI DEL GIORNO</h2>
         <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
 
-        <h2 style="margin-top:30px">🛍️ NEGOZIO PREMI</h2>
-        <div id="shopList"></div>
-    </div>
+        <button class="accordion" onclick="toggleAccordion('rewardsPanel')" style="margin-top:30px">
+    <span>🛍️ Negozio Premi</span>
+    <span class="material-icons-round">expand_more</span>
+</button>
+<div class="panel" id="rewardsPanel">
+    <div id="shopList"></div>
+</div>
 
     <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
 
