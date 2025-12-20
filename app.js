@@ -36,7 +36,6 @@ let recurMode = 'recur';
 // ==========================================
 
 window.getItemValueAtDate = (item, field, dateStr) => {
-    // Sicurezza: se item è nullo, ritorna 0 per evitare crash
     if (!item) return 0;
     
     if (!item.changes || item.changes.length === 0) {
@@ -120,7 +119,7 @@ function startListeners() {
                 document.getElementById(`score-${u}`).innerText = userData.score;
                 if(u === currentUser) { 
                     globalData = userData; 
-                    scheduleRenderView(); // Usa il render ottimizzato
+                    scheduleRenderView(); 
                 }
                 updateMultiChart();
             }
@@ -170,7 +169,6 @@ function renderView() {
     const hList = document.getElementById('habitList');
     const ifList = document.getElementById('ifList');
     
-    // Performance: Creiamo stringhe HTML invece di appendere al DOM ogni volta
     let hListHtml = '';
     let ifListHtml = '';
     
@@ -182,7 +180,6 @@ function renderView() {
 
     (globalData.habits || []).forEach((h) => {
         try {
-            // FIX CRITICO: Supporto per ID vecchi (fallback su name)
             const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
             
             if (h.archivedAt && viewStr >= h.archivedAt) return;
@@ -198,12 +195,9 @@ function renderView() {
             const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
             const description = window.getItemValueAtDate(h, 'description', viewStr);
 
-            // Gestione IF habits
             let isIfHabit = (h.type === 'if');
-
             let shouldShow = true;
             
-            // Logica ricorrenza (solo se non è IF e non è single)
             if (!isIfHabit && h.type !== 'single' && freq > 1) {
                 if (isDone || isFailed) { shouldShow = true; } else {
                     if (h.lastDone) {
@@ -309,56 +303,41 @@ function renderView() {
     netEl.className = 'sum-val'; 
     if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
 
-    updateProgressCircle(dailyEarned, dailyTotalPot);
-
-    // Renderizza il Negozio (Accordion)
-// --- INIZIO DIAGNOSTICA NEGOZIO (Copia da qui) ---
-    const sList = document.getElementById('shopList');
-    let sListHtml = '';
-
-    // 1. Controllo se l'array esiste
-    if (!globalData.rewards) {
-        sListHtml = '<div style="padding:15px; background:darkred; color:white; border-radius:8px;">ERRORE CRITICO: Il campo "rewards" non esiste nel database per questo utente.</div>';
-    } 
-    // 2. Controllo se è vuoto
-    else if (globalData.rewards.length === 0) {
-        sListHtml = '<div style="padding:15px; background:#333; color:orange; border-radius:8px;">IL DATABASE È CONNESSO MA LA LISTA PREMI È VUOTA [ ]</div>';
-    } 
-    // 3. Se ci sono dati, li stampo in modo SEMPLIFICATO (senza filtri date/archiviazione)
-    else {
-        sListHtml += `<div style="padding:5px; font-size:0.7em; color:#666; text-align:center">DEBUG: Trovati ${globalData.rewards.length} elementi grezzi</div>`;
-        
-        globalData.rewards.forEach((r, idx) => {
-            try {
-                // Recupero manuale e sicuro dei dati per evitare crash
-                let nome = r.name || "SENZA NOME";
-                // Cerchiamo il costo: o campo diretto o nell'ultimo change
-                let costo = r.cost; 
-                if (r.changes && r.changes.length > 0) {
-                    costo = r.changes[r.changes.length - 1].cost;
-                }
-                costo = costo || 0; // Se null diventa 0
-
-                sListHtml += `
-                <div class="item" style="border-left: 4px solid #fff;">
-                    <div>
-                        <h3>${nome}</h3> 
-                        <span style="font-size:0.7em; color:#aaa">ID: ${r.id}</span>
-                        <div style="font-weight:bold; color:var(--danger)">Costo: ${costo}</div>
-                    </div>
-                    <div class="actions-group">
-                        <button class="btn-main" style="padding:5px 15px; width:auto;" onclick="buyReward('${nome}', ${costo})">Compra</button>
-                        <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')">✏️</button>
-                    </div>
-                </div>`;
-            } catch (err) {
-                sListHtml += `<div style="color:red; padding:5px;">Elemento #${idx} corrotto: ${err.message}</div>`;
-            }
-        });
+    // Chiamata sicura alla funzione (ora esiste in fondo al file!)
+    if (typeof updateProgressCircle === 'function') {
+        updateProgressCircle(dailyEarned, dailyTotalPot);
     }
 
+    // Renderizza il Negozio (Lista Fissa)
+    const sList = document.getElementById('shopList');
+    let sListHtml = '';
+    
+    const rewards = globalData.rewards || [];
+    if(rewards.length === 0) {
+        sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
+    } else {
+        rewards.forEach((r) => {
+            try {
+                if (r.archivedAt && viewStr >= r.archivedAt) return;
+                const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+                const tagObj = tagsMap[r.tagId];
+                const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                const count = countRewardPurchases(r.name);
+                const countHtml = count > 0 ? `<span class="shop-count">Acquistato ${count} volte</span>` : '';
+
+                sListHtml += `
+                    <div class="item" style="${borderStyle}">
+                        <div><h3>${r.name}</h3>${tagHtml}${countHtml}<div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div></div>
+                        <div class="actions-group">
+                                <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                                <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                        </div>
+                    </div>`;
+            } catch(e) { console.error("Err reward", e); }
+        });
+    }
     sList.innerHTML = sListHtml;
-    // --- FINE DIAGNOSTICA ---    
 }
 
 window.setHabitStatus = async (habitId, action, value) => {
@@ -839,4 +818,32 @@ function updateMultiChart() {
     }; 
     const flavioPoints = getDailyNetPoints(allUsersData.flavio); const simonaPoints = getDailyNetPoints(allUsersData.simona); 
     if(chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.4, pointRadius: 4 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.4, pointRadius: 4 } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#888' } } }, scales: { y: { grid: { color: '#333' }, ticks: { color: '#888' }, beginAtZero: true }, x: { grid: { display: false }, ticks: { color: '#888', maxTicksLimit: 8 } } } } }); 
+}
+
+// --- FUNZIONE CHE MANCAVA (Incolla in fondo a app.js) ---
+function updateProgressCircle(earned, total) {
+    const circle = document.getElementById('prog-circle');
+    const text = document.getElementById('prog-text');
+    if (!circle || !text) return;
+    
+    // Calcolo circonferenza
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    
+    // Evitiamo divisione per zero
+    let percent = 0;
+    if (total > 0) {
+        percent = (earned / total) * 100;
+    }
+    
+    // Limiamo tra 0 e 100
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    const offset = circumference - (percent / 100) * circumference;
+    
+    circle.style.strokeDashoffset = offset;
+    text.innerText = Math.round(percent) + '%';
 }
