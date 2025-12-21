@@ -2,132 +2,226 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Diario V13.0 Modular</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e1e1e">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2965/2965316.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#121212">
+    <title>GLP V16.6</title>
     
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://em-content.zobj.net/source/apple/354/fire_1f525.png">
+    <link rel="stylesheet" href="style.css?v=16.6">
 
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
 </head>
 <body>
+    <div class="version-tag">GLP V16.6 (Date & Layout Fix)</div>
+    <div id="toast"><span id="toast-icon">✅</span><span id="toast-text">Messaggio</span></div>
 
-    <div id="login-screen">
-        <h1 style="color:var(--accent)">Diario V13.0</h1>
-        <button class="btn-primary" onclick="login()">Accedi con Google</button>
+    <div class="identity-bar">
+        <div class="offline-badge">OFFLINE</div>
+        <div class="user-info"><div class="avatar" id="avatar-initial">F</div><div class="username" id="username-display">Flavio</div></div>
+        <button class="settings-btn" onclick="document.getElementById('settingsModal').style.display='flex'"><span class="material-icons-round">settings</span></button>
     </div>
 
-    <div id="app" style="display:none; flex-direction:column; height:100%;">
-        <header>
-            <div class="header-top">
-                <div class="date-navigator">
-                    <input type="month" id="date-picker" onchange="changeDate(this.value)">
-                    <span id="db-status" class="db-status">Ready</span>
+    <div class="dashboard-top">
+        <div class="progress-container">
+            <svg class="progress-ring" width="100" height="100"><circle stroke="#2a2a2a" stroke-width="8" fill="transparent" r="42" cx="50" cy="50"/><circle id="prog-circle" class="progress-ring__circle" stroke="var(--theme-color)" stroke-width="8" fill="transparent" r="42" cx="50" cy="50" stroke-dasharray="263" stroke-dashoffset="263" stroke-linecap="round"/></svg>
+            <div class="progress-text" id="prog-text">0%</div>
+        </div>
+        <div class="scoreboard-mini">
+            <div class="score-row" id="card-flavio" onclick="switchUser('flavio')"><span>Flavio</span><strong id="score-flavio">--</strong></div>
+            <div class="score-row" id="card-simona" onclick="switchUser('simona')"><span>Simona</span><strong id="score-simona">--</strong></div>
+        </div>
+    </div>
+
+    <div class="chart-box"><canvas id="progressChart"></canvas></div>
+    
+    <div class="date-nav">
+        <button class="date-btn" onclick="changeDate(-1)">&#8249;</button>
+        <div class="current-date-wrapper">
+            <span class="current-date" id="dateDisplay">OGGI</span>
+            <input type="date" id="datePicker" onchange="goToDate(this.value)">
+        </div>
+        <button class="date-btn" onclick="changeDate(1)">&#8250;</button>
+    </div>
+
+    <div class="daily-summary">
+        <div class="sum-item"><div class="sum-label">Guadagnati</div><div class="sum-val earn" id="sum-earn">0</div></div>
+        <div class="sum-item"><div class="sum-label">Spesi/Pen</div><div class="sum-val spent" id="sum-spent">0</div></div>
+        <div class="sum-item"><div class="sum-label">Netto</div><div class="sum-val" id="sum-net">0</div></div>
+    </div>
+
+    <div id="mainContent">
+        <div class="note-container">
+            <label style="font-size:0.8em; color:#888; margin-left:5px;"><span class="material-icons-round" style="font-size:12px; vertical-align:middle">group</span> Diario di Bordo</label>
+            <textarea id="dailyNoteArea" class="shared-note-area" placeholder="Scrivi una nota..." oninput="handleNoteInput(this.value)"></textarea>
+            <div id="noteStatus" style="font-size:0.7em; color:#666; text-align:right; margin-top:2px; height:15px;"></div>
+        </div>
+
+        <h2>ABITUDINI DEL GIORNO</h2>
+        <div id="habitList"></div>
+        
+        <button class="accordion" onclick="toggleAccordion('ifPanel')"><span>🤷‍♂️ Abitudini Se/If (Bonus)</span><span class="material-icons-round">expand_more</span></button>
+        <div class="panel" id="ifPanel">
+            <div id="ifList"></div>
+        </div>
+
+        <h2>ACQUISTI DEL GIORNO</h2>
+        <div id="purchasedList"><div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto oggi</div></div>
+
+        <button class="accordion" onclick="toggleAccordion('rewardsPanel')" style="margin-top:30px">
+            <span>🛍️ Negozio Premi</span>
+            <span class="material-icons-round">expand_more</span>
+        </button>
+        <div class="panel" id="rewardsPanel">
+            <div id="shopList"></div>
+        </div>
+    </div>
+
+    <div class="fab" onclick="document.getElementById('addModal').style.display='flex'"><span class="material-icons-round">add</span></div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-box">
+            <h3 style="color:var(--theme-color)">Nuovo Elemento</h3>
+            
+            <div class="input-group">
+                <label style="font-size:0.8em; color:#888;">Data Inizio / Creazione</label>
+                <input type="date" id="newStartDate" class="full" style="color:var(--theme-color); font-weight:bold;">
+            </div>
+
+            <div class="switch-group">
+                <div class="switch-opt active" id="typeHabit" onclick="setAddType('habit')">Abitudine</div>
+                <div class="switch-opt" id="typeReward" onclick="setAddType('reward')">Premio</div>
+            </div>
+            <input type="text" id="newName" placeholder="Nome">
+            <select id="newTag" class="full"><option value="">Nessun Tag</option></select>
+            
+            <input type="text" id="newDesc" placeholder="Descrizione (opzionale)" class="full" style="font-size:0.9em; margin-bottom:10px;">
+
+            <div id="habitInputs">
+                <div style="margin:15px 0; display:flex; align-items:center; gap:10px; background:#2a2a2a; padding:10px; border-radius:8px;">
+                    <input type="checkbox" id="newIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('new')">
+                    <label for="newIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
                 </div>
                 
-                <div style="display:flex; gap:5px; align-items:center;">
-                    <button class="tool-btn" onclick="openTagExplorer()" title="Esplora Tag"><span class="material-icons-round">tag</span></button>
-                    <button class="tool-btn" onclick="openCoachManager()" title="Gestisci Coach"><span class="material-icons-round">menu_book</span></button>
-                    <button class="tool-btn" onclick="openStats()" title="Stats"><span class="material-icons-round">bar_chart</span></button>
-                    <button class="tool-btn" onclick="openSettings()" title="Settings"><span class="material-icons-round">settings</span></button>
-                    <img id="user-pic" src="" style="width:28px; height:28px; border-radius:50%; border:2px solid var(--accent); margin-left:5px;">
+                <div class="switch-group" style="margin-top:5px">
+                    <div class="switch-opt active" id="modeRecur" onclick="setRecurMode('recur')">Ricorr.</div>
+                    <div class="switch-opt" id="modeSingle" onclick="setRecurMode('single')">Singolo</div>
+                    <div class="switch-opt" id="modeIf" onclick="setRecurMode('if')">If (Bonus)</div>
+                </div>
+
+                <div id="recurInput">
+                    <select id="newFrequency" class="full"><option value="1">Ogni Giorno</option><option value="3">Ogni 3 Giorni</option><option value="7">Settimanale</option><option value="30">Mensile</option></select>
+                </div>
+                <div id="dateInput" style="display:none"><input type="date" id="newTargetDate" class="full"></div>
+                
+                <div class="grid-2">
+                    <div class="input-group"><label id="lblNewReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="newReward" placeholder="+"></div>
+                    <div class="input-group" id="groupNewPenalty"><label style="font-size:0.8em; color:#888;">Penalità</label><input type="number" id="newPenalty" placeholder="-"></div>
+                </div>
+                <div id="newMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
+                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="newRewardMin" placeholder="Punti Minimi">
                 </div>
             </div>
-            
-            <div id="ai-coach-area">
-                <div class="ai-title" id="ai-title">Coach</div>
-                <div id="ai-message"></div>
-                <div class="ai-actions" id="ai-actions"></div>
-            </div>
-        </header>
-
-        <div class="toolbar">
-            <button class="tool-btn" onclick="triggerBrainstorm()" title="AI Brainstorming"><span class="material-icons-round" style="color:#ffd700;">lightbulb</span></button>
-            <button class="tool-btn" onclick="openWalkTalk()" title="Walk & Talk"><span class="material-icons-round" style="color:#00e676;">pets</span></button>
-            <button class="tool-btn" onclick="generateAiSummary()" title="Riassunto AI"><span class="material-icons-round" style="color:#29b6f6;">auto_awesome</span></button>
-            
-            <div class="separator"></div>
-            
-            <button class="tool-btn" onclick="format('bold')"><span class="material-icons-round">format_bold</span></button>
-            <button class="tool-btn" onclick="format('italic')"><span class="material-icons-round">format_italic</span></button>
-            <button class="tool-btn" onclick="triggerImageUpload()"><span class="material-icons-round">add_photo_alternate</span></button>
-            <button class="tool-btn" id="mic-btn" onclick="toggleDictation()"><span class="material-icons-round">mic</span></button>
-            
-            <div class="mood-bar">
-                <button class="mood-btn" onclick="insertMood('😄')">😄</button>
-                <button class="mood-btn" onclick="insertMood('😐')">😐</button>
-                <button class="mood-btn" onclick="insertMood('😔')">😔</button>
-                <button class="mood-btn" onclick="insertMood('😡')">😡</button>
-                <button class="mood-btn" onclick="insertMood('💡')">💡</button>
-            </div>
+            <div id="rewardInputs" style="display:none"><input type="number" id="newCost" placeholder="Costo"></div>
+            <button class="btn-main" onclick="addItem()">Salva</button>
+            <button class="btn-sec" onclick="document.getElementById('addModal').style.display='none'">Chiudi</button>
         </div>
-        
-        <div id="metrics-bar">
-            <div class="metric-item" title="Tempo sessione attuale">
-                <span>⏱️</span> <span id="session-timer" class="metric-val">00:00</span>
-            </div>
-            <div class="metric-item" title="Parole scritte oggi">
-                <span>📝 Sessione:</span> <span id="count-today" class="metric-val">0</span>
-            </div>
-            <div class="metric-item" title="Parole totali nel diario">
-                <span>📚 Totale:</span> <span id="count-global" class="metric-val">Loading...</span>
-            </div>
-            <div class="metric-item" title="Peso del file attuale (max 1000KB)">
-                <span>💾</span> <span id="file-weight" class="metric-val">0 KB</span>
-            </div>
-        </div>
-
-        <input type="file" id="img-input" accept="image/*" onchange="handleImageUpload(this)">
-
-        <main>
-            <div id="editor" contenteditable="true" onkeyup="handleKeyUp(event)"></div>
-        </main>
     </div>
 
-    <div id="summary-modal" class="modal"><div class="modal-content"><div style="display:flex; justify-content:space-between;"><h2>Riassunto AI 🤖</h2><button onclick="document.getElementById('summary-modal').classList.remove('open')" style="background:none; border:none; color:inherit; font-size:1.5rem;">&times;</button></div><div id="ai-summary-content"></div></div></div>
-    
-    <div id="tag-modal" class="modal"><div class="modal-content"><div style="display:flex; justify-content:space-between;"><h2>Esplora Tag</h2><button onclick="document.getElementById('tag-modal').classList.remove('open')" style="background:none; border:none; color:inherit; font-size:1.5rem;">&times;</button></div><div style="padding:10px 0; border-bottom:1px solid #444; margin-bottom:10px;"><div id="tag-cloud"></div></div><div id="tag-results"></div></div></div>
-    
-    <div id="walk-talk-modal" class="modal" style="background:var(--bg);"><div id="walk-talk-content" class="modal-content" style="height:100%; width:100%; max-width:100%; border-radius:0; justify-content: center;"><div style="position:absolute; top:20px; right:20px;"><button onclick="closeWalkTalk()" style="background:none; border:none; color:var(--text); font-size:2rem;">&times;</button></div><h2 style="color:var(--accent); margin-bottom:10px;">Walk & Talk</h2><div id="walk-status">Pronto?</div><div id="walk-transcript">Premi il microfono.</div><button id="walk-mic-btn" class="big-mic-btn" onclick="toggleWalkSession()"><span class="material-icons-round" style="font-size:3rem;">mic</span></button></div></div>
-    
-    <div id="coach-manager-modal" class="modal">
-        <div class="modal-content">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h2 style="margin:0;">Gestione Coach 🧠</h2>
-                <button onclick="document.getElementById('coach-manager-modal').classList.remove('open')" style="background:none; border:none; color:inherit; font-size:1.5rem;">&times;</button>
-            </div>
-            
-            <div class="coach-input-area">
-                <input type="text" id="new-prompt-input" placeholder="Scrivi una nuova domanda..." onkeyup="if(event.key==='Enter') addCoachPrompt()">
-                <button class="btn-primary" style="padding: 8px 15px; border-radius: 8px;" onclick="addCoachPrompt()">Aggiungi</button>
-            </div>
-            
-            <div style="font-size:0.8rem; color:#888; margin-bottom:10px;">Le domande sono ordinate per frequenza d'uso:</div>
-            
-            <div id="coach-list-container">
+    <div id="editModal" class="modal">
+        <div class="modal-box">
+            <h3>Modifica</h3>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Data modifica</label><input type="date" id="editDate" class="full"></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nome</label><input type="text" id="editName"></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Descrizione</label><input type="text" id="editDesc" placeholder="Descrizione..."></div>
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Tag</label><select id="editTag" class="full"><option value="">Nessun Tag</option></select></div>
+
+            <div id="editHabitFields">
+                 <div style="margin:15px 0; display:flex; align-items:center; gap:10px; background:#2a2a2a; padding:10px; border-radius:8px;">
+                    <input type="checkbox" id="editIsMulti" style="width:20px; height:20px; margin:0;" onchange="toggleMultiInput('edit')">
+                    <label for="editIsMulti" style="font-size:0.9em;">Abilita livelli Min/Max?</label>
                 </div>
+                <div class="grid-2">
+                    <div class="input-group"><label id="lblEditReward" style="font-size:0.8em; color:#888;">Reward (Max)</label><input type="number" id="editVal1"></div>
+                    <div class="input-group" id="editValGroup2"><label style="font-size:0.8em; color:#888;">Penalty</label><input type="number" id="editVal2"></div>
+                </div>
+                <div id="editMinInputGroup" class="input-group" style="display:none; margin-top:5px; border-top:1px solid #333; padding-top:5px;">
+                    <label style="font-size:0.8em; color:var(--theme-color);">Reward Minimo (Min)</label><input type="number" id="editRewardMin">
+                </div>
+            </div>
+            <div id="editRewardFields" style="display:none"><div class="input-group"><label style="font-size:0.8em; color:#888;">Costo</label><input type="number" id="editCost"></div></div>
+
+            <div class="input-group"><label style="font-size:0.8em; color:#888;">Nota Modifica (Automatica se vuota)</label><textarea id="editNote" class="full" rows="2" placeholder="Lascia vuoto per log automatico, oppure scrivi qui..."></textarea></div>
+            
+            <div class="history-list" id="editHistoryLog"></div>
+            <button class="btn-main" onclick="saveEdit()">Salva Modifiche</button>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn-danger" style="border-color: #ff9800; color: #ff9800;" onclick="archiveFromEdit()">Archivia</button>
+                <button class="btn-danger" onclick="deleteItemForever()">Elimina Definitivamente</button>
+            </div>
+            <button class="btn-sec" onclick="document.getElementById('editModal').style.display='none'">Annulla</button>
         </div>
     </div>
 
-    <div id="stats-modal" class="modal"><div class="modal-content"><div style="display:flex; justify-content:space-between;"><h2>Statistiche</h2><button onclick="document.getElementById('stats-modal').classList.remove('open')" style="background:none; border:none; color:inherit; font-size:1.5rem;">&times;</button></div><div style="margin:20px 0;">Parole Oggi: <span id="stat-count-today" style="color:var(--accent); font-weight:bold;">0</span></div><canvas id="chartCanvas" height="150"></canvas></div></div>
-
-    <div id="settings-modal" class="modal">
-        <div class="modal-content" style="max-width:300px;">
-            <div style="display:flex; justify-content:space-between;"><h2>Opzioni</h2><button onclick="document.getElementById('settings-modal').classList.remove('open')" style="background:none; border:none; color:inherit; font-size:1.5rem;">&times;</button></div>
-            <div style="margin-top:20px;"><button style="width:100%; padding:10px;" onclick="toggleTheme()">Tema Light/Dark 🌓</button></div>
-            <div style="margin-top:10px;"><button style="width:100%; padding:10px;" onclick="exportData()">💾 Scarica Pagina</button></div>
-            <hr style="border:0; border-top:1px solid var(--border); margin:20px 0;">
-            <h3>🤖 Google Gemini AI</h3>
-            <input type="password" id="gemini-api-key" placeholder="Incolla AIzaSy..." style="width:100%; padding:10px; margin-top:5px; background:var(--bg); border:1px solid var(--border); color:var(--text); border-radius:5px;">
-            <button style="width:100%; padding:10px; margin-top:10px; background:var(--accent); color:white; border:none; border-radius:5px;" onclick="saveApiKey()">Salva Chiave</button>
+    <div id="archiveModal" class="modal">
+        <div class="modal-box"><h3>Archivia</h3><input type="date" id="archiveDate" class="full"><button class="btn-danger" onclick="confirmArchive()">Archivia</button><button class="btn-sec" onclick="document.getElementById('archiveModal').style.display='none'">Annulla</button></div>
+    </div>
+    
+    <div id="settingsModal" class="modal">
+        <div class="modal-box" style="text-align:center"><h3>Impostazioni</h3><button class="btn-backup" onclick="openAnalytics()">📉 Analisi</button><button class="btn-backup" onclick="openStats()">📊 Statistiche</button><button class="btn-backup" onclick="openTagManager()">🏷️ Tag</button><hr style="margin:20px 0; border:1px solid #333"><button class="btn-backup" onclick="exportData()">Backup</button><button class="btn-backup" onclick="document.getElementById('importFile').click()">Ripristina</button><input type="file" id="importFile" style="display:none" onchange="importData(this.files)"><hr style="margin:20px 0; border:1px solid #333"><button class="btn-danger" onclick="hardReset()">RESET</button><button class="btn-sec" onclick="document.getElementById('settingsModal').style.display='none'">Chiudi</button></div>
+    </div>
+    
+    <div id="tagModal" class="modal">
+        <div class="modal-box"><h3>Tag</h3><div id="tagsList" style="max-height:200px; overflow-y:auto; margin-bottom:15px"></div><div style="background:#2a2a2a; padding:10px;"><input type="text" id="newTagName" placeholder="Nome"><input type="color" id="newTagColor" value="#3498db" style="width:100%; height:40px; margin:5px 0"><button id="btnSaveTag" class="btn-main" onclick="saveTagManager()">Crea</button></div><button class="btn-sec" onclick="document.getElementById('tagModal').style.display='none'">Chiudi</button></div>
+    </div>
+    
+    <div id="statsModal" class="modal">
+        <div class="modal-box" style="max-width:500px">
+            <h3>📊 Statistiche Generali</h3>
+            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Distribuzione Punti</h4>
+            <div style="width:200px; height:200px; margin:0 auto 20px auto;"><canvas id="pieChart"></canvas></div>
+            <h4 style="color:#888; font-size:0.8em; text-transform:uppercase; margin-bottom:10px">Overview</h4>
+            <div id="statsContent" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+            <button class="btn-sec" onclick="document.getElementById('statsModal').style.display='none'">Chiudi</button>
+        </div>
+    </div>
+    
+    <div id="analyticsModal" class="modal">
+        <div class="modal-box" style="width:95%; max-width:800px; height:85vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3>📉 Analisi Dettagliata</h3>
+                <button class="btn-icon-minimal" onclick="document.getElementById('analyticsModal').style.display='none'"><span class="material-icons-round">close</span></button>
+            </div>
+            <div class="switch-group" style="margin-bottom:15px;">
+                <div class="switch-opt" id="filter7" onclick="updateDetailedChart(7)">7 GG</div>
+                <div class="switch-opt" id="filter14" onclick="updateDetailedChart(14)">14 GG</div>
+                <div class="switch-opt active" id="filter30" onclick="updateDetailedChart(30)">30 GG</div>
+            </div>
+            <div style="flex:1; position:relative; min-height:0;"><canvas id="detailedChart"></canvas></div>
+            <div id="nodeInfo" style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.05); border-radius:10px; display:none;">
+                <div style="display:flex; justify-content:space-between; border-bottom:1px solid #444; padding-bottom:5px; margin-bottom:5px;">
+                    <strong id="nodeDate" style="color:var(--text)">--</strong>
+                    <div><span style="color:#ffca28">F</span> <span id="nodeValFlavio">0</span> | <span style="color:#d05ce3">S</span> <span id="nodeValSimona">0</span></div>
+                </div>
+                <div id="nodeNote" style="font-style:italic; color:#aaa; font-size:0.9em;"></div>
+            </div>
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
-<script type="module" src="app.js?v=14"></script>
+    <script type="module" src="app.js?v=16.6"></script>
+    <script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); }); }</script>
+    
+    <script>
+        function toggleAccordion(id) {
+            var x = document.getElementById(id);
+            if (x) {
+                x.classList.toggle("show");
+            }
+        }
+    </script>
 </body>
 </html>

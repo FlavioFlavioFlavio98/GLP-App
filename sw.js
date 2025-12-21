@@ -1,50 +1,49 @@
-const CACHE_NAME = 'diario-cache-v14-modular'; // CAMBIA QUESTO NOME AD OGNI AGGIORNAMENTO
-const assetsToCache = [
+const CACHE_NAME = 'glp-v15-0'; // Aggiornato per forzare pulizia
+
+const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
+  './style.css?v=15.0',
   './app.js',
-  './manifest.json'
+  './app.js?v=15.0',
+  './manifest.json',
+  'https://cdn.jsdelivr.net/npm/chart.js',
+  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',
+  'https://fonts.googleapis.com/icon?family=Material+Icons+Round'
 ];
 
-// Installazione: scarica i file
-self.addEventListener('install', event => {
-  self.skipWaiting(); // Forza l'attivazione immediata del nuovo SW
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Aperta cache:', CACHE_NAME);
-        return cache.addAll(assetsToCache);
-      })
+self.addEventListener('install', (evt) => {
+  evt.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (evt) => {
+  evt.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Attivazione: pulizia vecchie cache
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cache => {
-          if (cache !== CACHE_NAME) {
-            console.log('Rimozione vecchia cache:', cache);
-            return caches.delete(cache);
-          }
+self.addEventListener('fetch', (evt) => {
+  const url = evt.request.url;
+  if (url.includes('firestore') || url.includes('googleapis')) return;
+  if (evt.request.mode === 'navigate') {
+    evt.respondWith(
+      fetch(evt.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          return res;
         })
-      );
-    }).then(() => self.clients.claim()) // Prende il controllo di tutti i tab aperti
-  );
-});
-
-// Fetch: serve i file dalla cache, se non ci sono va in rete
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
+        .catch(() => caches.match('./index.html'))
+    );
+  } else {
+    evt.respondWith(
+      caches.match(evt.request).then((res) => res || fetch(evt.request))
+    );
+  }
 });

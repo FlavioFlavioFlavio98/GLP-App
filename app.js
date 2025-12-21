@@ -1,509 +1,1061 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { GoogleGenAI } from "https://cdn.jsdelivr.net/npm/@google/genai@1.33.0/dist/web/index.mjs";
-
-let aiInstance = null;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, setDoc, updateDoc, deleteDoc, getDoc, onSnapshot, arrayUnion, collection, getDocs } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyCYndAl9MKtZDTK5ivbtmaqDa-r6vEe6SM",
-    authDomain: "diario-app-fc5fe.firebaseapp.com",
-    projectId: "diario-app-fc5fe",
-    storageBucket: "diario-app-fc5fe.firebasestorage.app",
-    messagingSenderId: "314736217548",
-    appId: "1:314736217548:web:010cc701630286c3f16169"
+    apiKey: "AIzaSyA001klzJou17djB76Q-t2eRTKbU9NZoQs",
+    authDomain: "gamification-life-project.firebaseapp.com",
+    projectId: "gamification-life-project",
+    storageBucket: "gamification-life-project.firebasestorage.app",
+    messagingSenderId: "925252547674",
+    appId: "1:925252547674:web:1316a5d96cb54c0a515463"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
 
-// DEFAULT PROMPTS (Ora come oggetti con ID univoco e contatore)
-const defaultPromptsText = [
-    "Qual è stata la cosa migliore che ti è successa oggi?",
-    "Scrivi 3 cose, anche piccole, per cui sei grato in questo momento.",
-    "C'è stato un momento oggi in cui ti sei sentito veramente in pace?",
-    "Cosa ti ha fatto sorridere oggi?",
-    "Qual è la lezione più importante che hai imparato oggi?",
-    "Chi ha reso la tua giornata migliore e perché?",
-    "Come ti sei preso cura di te stesso oggi?",
-    "Qual è l'obiettivo principale che vuoi raggiungere domani?",
-    "C'è qualcosa che stai rimandando? Perché?",
-    "Se potessi rifare la giornata di oggi, cosa cambieresti?",
-    "Quale piccola azione puoi fare ora per migliorare la tua settimana?",
-    "Cosa ti ha fatto perdere tempo oggi?",
-    "Hai fatto un passo avanti verso i tuoi sogni oggi? Quale?",
-    "Come valuti la tua energia oggi da 1 a 10 e perché?",
-    "Quale emozione ha prevalso oggi?",
-    "C'è qualcosa che ti preoccupa? Scrivilo per toglierlo dalla testa.",
-    "C'è una conversazione che avresti voluto affrontare diversamente?",
-    "Cosa ti sta togliendo energia in questo periodo?",
-    "Cosa faresti se non avessi paura di fallire?",
-    "C'è un pensiero ricorrente che ti sta disturbando?",
-    "Scrivi una lettera al te stesso di 5 anni fa.",
-    "C'è qualcosa che devi 'lasciar andare' prima di dormire?",
-    "Se la tua giornata fosse un film, che titolo avrebbe?",
-    "Descrivi la giornata di oggi usando solo 3 parole.",
-    "Se potessi essere ovunque nel mondo ora, dove saresti?",
-    "Qual è l'idea più strana che ti è venuta in mente oggi?",
-    "Scrivi la prima frase del libro della tua vita.",
-    "Come ti immagini tra un anno esatto?",
-    "Qual è la cosa che aspetti con più ansia nel prossimo futuro?",
-    "Scrivi un messaggio di incoraggiamento per il te stesso di domani mattina."
-];
+// --- VARIABILI GLOBALI ---
+let currentUser = localStorage.getItem('glp_user') || 'flavio';
+let globalData = null;
+let allUsersData = { flavio: null, simona: null };
+let viewDate = new Date(); 
+let chartInstance = null;
+let detailedChartInstance = null;
+let pieChartInstance = null;
+let pendingArchiveId = null;
+let editingTagIndex = null;
+let currentNoteUnsubscribe = null;
+let noteDebounceTimer = null;
+let editingItem = null; 
+let editingType = null;
+let addType = 'habit'; 
+let recurMode = 'recur';
 
-// Funzione helper per creare oggetti prompt
-function createPromptObj(text) {
-    return { id: Date.now() + Math.random(), text: text, usage: 0 };
+let _renderTimer = null;
+
+// ==========================================
+// SEZIONE 1: HELPERS & UTILITIES
+// ==========================================
+
+window.getItemValueAtDate = (item, field, dateStr) => {
+    if (!item) return 0;
+    if (!item.changes || item.changes.length === 0) {
+        if(field === 'isMulti') return item.isMulti || false;
+        if(field === 'description') return item.description || "";
+        return parseInt(item[field] || 0);
+    }
+    const sortedChanges = item.changes.slice().sort((a, b) => a.date.localeCompare(b.date));
+    let validChange = null;
+    for (let change of sortedChanges) {
+        if (change.date <= dateStr) validChange = change; else break;
+    }
+    if (validChange) {
+        if(field === 'isMulti') return validChange.isMulti || false;
+        if(field === 'description') return validChange.description || "";
+        return parseInt(validChange[field] || 0);
+    }
+    if(sortedChanges.length > 0) {
+         if(field === 'isMulti') return sortedChanges[0].isMulti || false;
+         if(field === 'description') return sortedChanges[0].description || "";
+         return parseInt(sortedChanges[0][field] || 0);
+    }
+    return 0;
+};
+
+function countRewardPurchases(rewardName) {
+    if (!globalData || !globalData.dailyLogs) return 0;
+    let count = 0;
+    Object.values(globalData.dailyLogs).forEach(log => {
+        let purchases = Array.isArray(log) ? [] : (log.purchases || []);
+        purchases.forEach(p => { if (p.name === rewardName) count++; });
+    });
+    return count;
 }
 
-// VARIABILI GLOBALI
-let currentUser = null;
-// MODIFICA CRITICA: Uso formato MESE (YYYY-MM) invece di Giorno
-let currentDateString = new Date().toISOString().slice(0, 7); 
-let currentDayStats = {};
-let questionHistory = {}; 
-let currentTags = [];
-let globalWordCount = 0; 
-let sessionStartTime = Date.now();
-let currentPrompts = [];
-// Flag per evitare timestamp duplicati durante la sessione
-let isSessionInitialized = false; 
+window.toggleInputs = () => {}; 
 
-if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
+window.addEventListener('online', () => document.body.classList.remove('offline'));
+window.addEventListener('offline', () => document.body.classList.add('offline'));
+window.vibrate = (type) => { if (navigator.vibrate && type === 'light') navigator.vibrate(30); if (navigator.vibrate && type === 'heavy') navigator.vibrate([50, 50]); }
+window.showToast = (msg, icon) => { const t = document.getElementById('toast'); document.getElementById('toast-text').innerText = msg; document.getElementById('toast-icon').innerText = icon || "ℹ️"; t.className = "show"; setTimeout(() => { t.className = t.className.replace("show", ""); }, 2500); }
 
-window.login = () => signInWithPopup(auth, provider);
+// ==========================================
+// SEZIONE 2: INIT & FIREBASE
+// ==========================================
 
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        currentUser = user;
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        document.getElementById('user-pic').src = user.photoURL;
-        document.getElementById('date-picker').value = currentDateString;
-        
-        const savedKey = localStorage.getItem('GEMINI_API_KEY');
-        if(savedKey) {
-            document.getElementById('gemini-api-key').value = savedKey;
-            initializeAi(savedKey); 
-        }
+applyTheme(currentUser);
+initApp();
 
-        loadGlobalStats(); 
-        await loadDiaryForDate(currentDateString);
-        
-        // Carica le domande del Coach
-        loadCoachPrompts();
-    }
-});
+async function initApp() {
+    await checkAndCreateUser('flavio');
+    await checkAndCreateUser('simona');
+    setupListListeners(); 
+    startListeners();
+}
 
-// --- COACH MANAGER LOGIC ---
-
-async function loadCoachPrompts() {
-    if (!currentUser) return;
+async function checkAndCreateUser(user) {
+    const ref = doc(db, "users", user);
     try {
-        const docRef = doc(db, "diario", currentUser.uid, "settings", "coach");
-        const snap = await getDoc(docRef);
-        
-        if (snap.exists() && snap.data().prompts && snap.data().prompts.length > 0) {
-            let loaded = snap.data().prompts;
-            // MIGRAZIONE DATI: Se sono stringhe vecchie, convertile in oggetti
-            if (typeof loaded[0] === 'string') {
-                currentPrompts = loaded.map(txt => createPromptObj(txt));
-                savePromptsToDb(); // Salva subito la conversione
-            } else {
-                currentPrompts = loaded;
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+            await setDoc(ref, { score: 0, habits: [], rewards: [], history: [], dailyLogs: {}, tags: [], lastLogin: new Date().toDateString() });
+        }
+    } catch (e) { console.error("Err init:", e); }
+}
+
+function startListeners() {
+    ['flavio', 'simona'].forEach(u => {
+        onSnapshot(doc(db, "users", u), (d) => {
+            if(d.exists()) {
+                const userData = d.data();
+                allUsersData[u] = userData;
+                document.getElementById(`score-${u}`).innerText = userData.score;
+                if(u === currentUser) { 
+                    globalData = userData; 
+                    scheduleRenderView();
+                }
             }
+        });
+    });
+}
+
+// ==========================================
+// SEZIONE 3: CORE LOGIC (RENDER & STATUS)
+// ==========================================
+
+function scheduleRenderView() {
+    if(_renderTimer) clearTimeout(_renderTimer);
+    _renderTimer = setTimeout(() => {
+        requestAnimationFrame(renderView);
+    }, 50); 
+}
+
+window.changeDate = (days) => { viewDate.setDate(viewDate.getDate() + days); scheduleRenderView(); }
+window.goToDate = (dateStr) => { if(dateStr) { viewDate = new Date(dateStr); scheduleRenderView(); } }
+function getDateString(date) { return date.toISOString().split('T')[0]; }
+
+function renderView() {
+    if(!globalData) return;
+    const todayStr = getDateString(new Date());
+    const viewStr = getDateString(viewDate);
+    
+    const displayEl = document.getElementById('dateDisplay');
+    let isToday = (viewStr === todayStr);
+    if (isToday) displayEl.innerText = "OGGI";
+    else if (viewStr === getDateString(new Date(Date.now() - 86400000))) displayEl.innerText = "IERI";
+    else displayEl.innerText = `${viewDate.getDate()}/${viewDate.getMonth()+1}`;
+    
+    document.getElementById('datePicker').value = viewStr;
+    setupNoteListener(viewStr);
+
+    const dailyLogs = globalData.dailyLogs || {};
+    const entry = dailyLogs[viewStr] || {};
+    
+    let doneHabits = Array.isArray(entry) ? entry : (entry.habits || []);
+    const failedHabits = entry.failedHabits || [];
+    const habitLevels = entry.habitLevels || {}; 
+    const todaysPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
+
+    const hList = document.getElementById('habitList');
+    const ifList = document.getElementById('ifList');
+    
+    let hListHtml = '';
+    let ifListHtml = '';
+    
+    let dailyTotalPot = 0; let dailyEarned = 0; let dailySpent = 0;
+    let visibleCount = 0; let ifCount = 0;
+
+    const tagsMap = {};
+    (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
+
+    (globalData.habits || []).forEach((h) => {
+        try {
+            const stableId = h.id || h.name.replace(/[^a-zA-Z0-9]/g, '');
+            
+            if (h.archivedAt && viewStr >= h.archivedAt) return;
+            if (h.type === 'single' && h.targetDate !== viewStr) return;
+
+            // FIX: Filtro temporale (Non mostrare se non ancora nata)
+            const createdDate = (h.changes && h.changes.length > 0) ? h.changes[0].date : '2020-01-01';
+            if (viewStr < createdDate) return;
+
+            const isDone = doneHabits.includes(stableId);
+            const isFailed = failedHabits.includes(stableId);
+            const freq = h.frequency || 1; 
+            
+            const currentReward = window.getItemValueAtDate(h, 'reward', viewStr);
+            const currentRewardMin = window.getItemValueAtDate(h, 'rewardMin', viewStr);
+            const currentPenalty = window.getItemValueAtDate(h, 'penalty', viewStr);
+            const isMulti = window.getItemValueAtDate(h, 'isMulti', viewStr);
+            const description = window.getItemValueAtDate(h, 'description', viewStr);
+
+            let isIfHabit = (h.type === 'if');
+            let shouldShow = true;
+            
+            if (!isIfHabit && h.type !== 'single' && freq > 1) {
+                if (isDone || isFailed) { shouldShow = true; } else {
+                    if (h.lastDone) {
+                        const diffDays = Math.ceil((new Date(viewStr) - new Date(h.lastDone)) / (86400000));
+                        if (diffDays < freq && diffDays >= 0) { shouldShow = false; }
+                    }
+                }
+            }
+
+            if (shouldShow) {
+                if (!isIfHabit) {
+                    visibleCount++;
+                    dailyTotalPot += currentReward; 
+                } else {
+                    ifCount++;
+                }
+                
+                if(isDone) {
+                    let level = habitLevels[stableId] || 'max'; 
+                    if (isMulti && level === 'min') dailyEarned += currentRewardMin;
+                    else dailyEarned += currentReward;
+                }
+                if(isFailed) dailySpent += currentPenalty; 
+
+                const tagObj = tagsMap[h.tagId];
+                const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                
+                let streakHtml = '';
+                if (isToday && !isIfHabit) {
+                    const s = calculateStreak(stableId);
+                    if (s > 1) streakHtml = `<span class="streak-badge">🔥 ${s} <span class="streak-text">streak</span></span>`;
+                }
+
+                let btnClass = ''; let btnIcon = 'check'; let btnText = '';
+                if (isDone) {
+                    let level = habitLevels[stableId] || 'max';
+                    if (isMulti && level === 'min') { btnClass = 'min'; btnText = 'MIN'; btnIcon = ''; } 
+                    else { btnClass = 'max active'; btnText = isMulti ? 'MAX' : ''; if (isMulti) btnIcon = ''; }
+                }
+
+                let descHtml = description ? `<span class="item-desc">${description}</span>` : '';
+                let statusClass = isDone ? 'status-done' : (isFailed ? 'status-failed' : '');
+                
+                // Bottoni preparati per la Delegation
+                const btnEditHtml = `<button class="btn-icon-minimal btn-edit-habit" data-id="${h.id}"><span class="material-icons-round" style="font-size:18px">edit</span></button>`;
+                
+                const failBtn = isIfHabit 
+                    ? '' 
+                    : `<button class="btn-status failed ${isFailed?'active':''}" data-id="${stableId}" data-action="failed" data-penalty="${currentPenalty}"><span class="material-icons-round">close</span></button>`;
+
+                const actionBtn = `<button class="btn-status done ${btnClass}" data-id="${stableId}" data-action="next" data-penalty="0">
+                                ${btnIcon ? `<span class="material-icons-round">${btnIcon}</span>` : btnText}
+                            </button>`;
+
+                const itemHtml = `
+                    <div class="item ${statusClass}" style="${borderStyle}">
+                        <div>
+                            <div style="display:flex; align-items:center"><h3>${h.name}</h3>${tagHtml}${streakHtml}</div>
+                            ${descHtml}
+                            <div class="vals">
+                                <span class="val-badge plus">+${isMulti ? currentRewardMin + '/' + currentReward : currentReward}</span> ${isIfHabit ? '' : `/ <span class="val-badge minus">-${currentPenalty}</span>`}
+                            </div>
+                        </div>
+                        <div class="actions-group">
+                            ${btnEditHtml}
+                            ${failBtn}
+                            ${actionBtn}
+                        </div>
+                    </div>`;
+                
+                if(isIfHabit) ifListHtml += itemHtml;
+                else hListHtml += itemHtml;
+            } 
+        } catch(err) {
+            console.error("Errore render abitudine:", h, err);
+        }
+    });
+    
+    if(visibleCount === 0) hListHtml = '<div style="text-align:center; padding:20px; color:#666">Nessuna attività attiva oggi 🎉</div>';
+    hList.innerHTML = hListHtml;
+
+    if(ifCount === 0) ifListHtml = '<div style="text-align:center; padding:10px; color:#666; font-size:0.9em">Nessun bonus oggi</div>';
+    ifList.innerHTML = ifListHtml;
+    
+    let purchaseCost = 0;
+    const pList = document.getElementById('purchasedList'); 
+    let pListHtml = '';
+
+    if(todaysPurchases.length === 0) { pListHtml = '<div style="color:#666; font-size:0.9em; text-align:center; padding:10px;">Nessun acquisto</div>'; } 
+    else {
+        todaysPurchases.forEach((p, idx) => {
+            purchaseCost += parseInt(p.cost);
+            pListHtml += `<div class="item"><div><h3>${p.name}</h3><div class="vals minus">Pagato: ${p.cost}</div></div><button class="btn-icon-minimal btn-delete" style="color:var(--danger)" onclick="refundPurchase(${idx}, ${p.cost})"><span class="material-icons-round">undo</span></button></div>`;
+        });
+    }
+    pList.innerHTML = pListHtml;
+    
+    dailySpent += purchaseCost;
+    const net = dailyEarned - dailySpent;
+    document.getElementById('sum-earn').innerText = `+${dailyEarned}`;
+    document.getElementById('sum-spent').innerText = `-${dailySpent}`;
+    
+    const netEl = document.getElementById('sum-net');
+    netEl.innerText = (net > 0 ? '+' : '') + net;
+    netEl.className = 'sum-val'; 
+    if (net < 0) netEl.classList.add('net-neg'); else if (net < 10) netEl.classList.add('net-warn'); else netEl.classList.add('net-pos');
+
+    if (typeof updateProgressCircle === 'function') {
+        updateProgressCircle(dailyEarned, dailyTotalPot);
+    }
+    if (typeof updateMultiChart === 'function') {
+        updateMultiChart();
+    }
+
+    // Shop
+    const sList = document.getElementById('shopList');
+    let sListHtml = '';
+    const rewards = globalData.rewards || [];
+    if(rewards.length === 0) {
+        sListHtml = '<div style="padding:15px; text-align:center; color:#666">Nessun premio disponibile</div>';
+    } else {
+        rewards.forEach((r) => {
+            try {
+                if (r.archivedAt && viewStr >= r.archivedAt) return;
+                
+                // Descrizione da oggetto o storico (se implementato)
+                const desc = r.description || window.getItemValueAtDate(r, 'description', viewStr);
+                const currentCost = window.getItemValueAtDate(r, 'cost', viewStr);
+                const tagObj = tagsMap[r.tagId];
+                const borderStyle = tagObj ? `border-left-color: ${tagObj.color}` : '';
+                const tagHtml = tagObj ? `<span class="tag-pill" style="background:${tagObj.color}">${tagObj.name}</span>` : '';
+                const count = countRewardPurchases(r.name);
+                
+                // FIX LAYOUT: Descrizione a sinistra, Contatore a destra sotto bottoni
+                const countHtml = count > 0 ? `<span class="shop-count" style="margin:0; font-size:0.7em; opacity:0.6;">Acquistato ${count} volte</span>` : '';
+                const descHtml = desc ? `<div class="item-desc" style="margin-top:2px;">${desc}</div>` : '';
+
+                sListHtml += `
+                    <div class="item" style="${borderStyle}">
+                        <div>
+                            <h3>${r.name}</h3>
+                            ${tagHtml}
+                            ${descHtml}
+                            <div style="margin-top:5px"><span class="shop-price">-${currentCost}</span></div>
+                        </div>
+                        <div class="actions-group" style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <button class="btn-icon-minimal" onclick="openEditModal('${r.id}', 'reward')"><span class="material-icons-round" style="font-size:18px">edit</span></button>
+                                <button class="btn-main" style="width:auto; padding:5px 15px; margin:0" onclick="buyReward('${r.name}', ${currentCost})">Compra</button>
+                            </div>
+                            ${countHtml}
+                        </div>
+                    </div>`;
+            } catch(e) { console.error("Err reward", e); }
+        });
+    }
+    sList.innerHTML = sListHtml;
+}
+
+window.setHabitStatus = async (habitId, action, value) => {
+    vibrate('light');
+
+    const dateStr = getDateString(viewDate);
+    const ref = doc(db, "users", currentUser);
+    let dailyLogs = globalData.dailyLogs || {};
+    let entry = dailyLogs[dateStr] || { habits: [], failedHabits: [], habitLevels: {}, purchases: [] };
+    
+    if (Array.isArray(entry)) entry = { habits: entry, failedHabits: [], habitLevels: {}, purchases: [] };
+    if (!entry.failedHabits) entry.failedHabits = [];
+    if (!entry.habits) entry.habits = [];
+    if (!entry.habitLevels) entry.habitLevels = {};
+
+    let currentHabits = entry.habits;
+    let currentFailed = entry.failedHabits;
+    let currentLevels = entry.habitLevels;
+    
+    let habitsArr = globalData.habits;
+    let habitIndex = habitsArr.findIndex(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === habitId);
+    const habitObj = habitsArr[habitIndex];
+    
+    const isMulti = window.getItemValueAtDate(habitObj, 'isMulti', dateStr);
+    const rewardMax = window.getItemValueAtDate(habitObj, 'reward', dateStr);
+    const rewardMin = window.getItemValueAtDate(habitObj, 'rewardMin', dateStr);
+    const penalty = window.getItemValueAtDate(habitObj, 'penalty', dateStr);
+
+    const wasDone = currentHabits.includes(habitId);
+    const wasLevel = currentLevels[habitId] || 'max';
+
+    if (wasDone) {
+        if (isMulti && wasLevel === 'min') globalData.score -= rewardMin;
+        else globalData.score -= rewardMax;
+        currentHabits = currentHabits.filter(id => id !== habitId);
+        delete currentLevels[habitId];
+    }
+    if (currentFailed.includes(habitId)) {
+        globalData.score += penalty;
+        currentFailed = currentFailed.filter(id => id !== habitId);
+    }
+
+    let actionType = 'neutral';
+    if (action === 'failed') {
+        currentFailed.push(habitId);
+        globalData.score -= penalty;
+        actionType = 'failed';
+    } else if (action === 'next') {
+        if (!wasDone) {
+            currentHabits.push(habitId);
+            if (isMulti) { currentLevels[habitId] = 'min'; globalData.score += rewardMin; } 
+            else { currentLevels[habitId] = 'max'; globalData.score += rewardMax; actionType = 'done'; }
         } else {
-            // Default iniziali
-            currentPrompts = defaultPromptsText.map(txt => createPromptObj(txt));
-            await setDoc(docRef, { prompts: currentPrompts }, { merge: true });
-        }
-    } catch (e) {
-        console.error("Errore caricamento prompts:", e);
-        // Fallback sicuro
-        currentPrompts = defaultPromptsText.map(txt => createPromptObj(txt));
-    }
-}
-
-async function savePromptsToDb() {
-    if (!currentUser) return;
-    try {
-        await setDoc(doc(db, "diario", currentUser.uid, "settings", "coach"), { 
-            prompts: currentPrompts 
-        }, { merge: true });
-        renderCoachList(); 
-    } catch (e) {
-        alert("Errore salvataggio modifiche Coach: " + e.message);
-    }
-}
-
-window.openCoachManager = () => {
-    document.getElementById('coach-manager-modal').classList.add('open');
-    renderCoachList();
-};
-
-function renderCoachList() {
-    const listContainer = document.getElementById('coach-list-container');
-    listContainer.innerHTML = '';
-    
-    // ORDINAMENTO: Decrescente per utilizzo (usage)
-    const sortedPrompts = [...currentPrompts].sort((a, b) => (b.usage || 0) - (a.usage || 0));
-    
-    sortedPrompts.forEach((promptObj) => {
-        // Troviamo l'indice originale per edit/delete
-        const realIndex = currentPrompts.findIndex(p => p.id === promptObj.id);
-        
-        const div = document.createElement('div');
-        div.className = 'coach-item';
-        div.innerHTML = `
-            <div class="coach-text">${promptObj.text}</div>
-            <div class="coach-meta">Usata: ${promptObj.usage || 0}</div>
-            <div class="coach-btn-group">
-                <button class="coach-action-btn" onclick="editCoachPrompt(${realIndex})" title="Modifica">✏️</button>
-                <button class="coach-action-btn coach-delete" onclick="deleteCoachPrompt(${realIndex})" title="Elimina">🗑️</button>
-            </div>
-        `;
-        listContainer.appendChild(div);
-    });
-}
-
-window.addCoachPrompt = () => {
-    const input = document.getElementById('new-prompt-input');
-    const text = input.value.trim();
-    if (!text) return;
-    
-    currentPrompts.unshift(createPromptObj(text)); 
-    input.value = '';
-    savePromptsToDb();
-};
-
-window.deleteCoachPrompt = (index) => {
-    if (confirm("Vuoi davvero eliminare questa domanda?")) {
-        currentPrompts.splice(index, 1);
-        savePromptsToDb();
-    }
-};
-
-window.editCoachPrompt = (index) => {
-    const newText = prompt("Modifica la domanda:", currentPrompts[index].text);
-    if (newText !== null && newText.trim() !== "") {
-        currentPrompts[index].text = newText.trim();
-        savePromptsToDb();
-    }
-};
-
-// --- BRAINSTORMING & INSERIMENTO DOMANDE ---
-
-window.triggerBrainstorm = () => { 
-    if (currentPrompts.length === 0) {
-        alert("Nessuna domanda disponibile. Aggiungine una!");
-        return;
-    }
-    // Pesca casualmente, ma potremmo anche pescare tra le meno usate se volessimo variare
-    const randIndex = Math.floor(Math.random() * currentPrompts.length);
-    const pObj = currentPrompts[randIndex];
-    
-    document.getElementById('ai-title').innerText = "Coach";
-    document.getElementById('ai-message').innerText = pObj.text;
-    
-    // Passiamo l'ID del prompt per incrementare il contatore
-    document.getElementById('ai-actions').innerHTML = `<button class="ai-btn-small" onclick="insertPrompt('${pObj.id}')">Inserisci</button>`;
-    document.getElementById('ai-coach-area').style.display = 'block';
-};
-
-window.insertPrompt = (promptId) => {
-    // 1. Trova domanda e incrementa contatore
-    // promptId viene passato come stringa, convertiamo se necessario, ma gli ID creati con Date.now() sono numeri
-    // Se passato via HTML attribute, è stringa.
-    const pIndex = currentPrompts.findIndex(p => p.id == promptId);
-    
-    let textToInsert = "Domanda...";
-    if (pIndex > -1) {
-        currentPrompts[pIndex].usage = (currentPrompts[pIndex].usage || 0) + 1;
-        textToInsert = currentPrompts[pIndex].text;
-        savePromptsToDb(); // Salva incremento
-    }
-
-    document.getElementById('editor').focus();
-    
-    // 2. Inserimento HTML Stilizzato (Rosso)
-    const html = `<br><p style="color: #ff5252; font-weight: bold; margin-bottom: 5px;">Domanda: ${textToInsert}</p><p>Risposta: </p>`;
-    document.execCommand('insertHTML', false, html);
-    
-    document.getElementById('ai-coach-area').style.display = 'none';
-    saveData();
-};
-
-// --- LOGICA SESSIONE & TIMESTAMP ---
-
-// Funzione per inserire il Timestamp all'avvio
-function appendSessionTimestamp() {
-    if (isSessionInitialized) return; // Fallo solo una volta per sessione/caricamento
-    
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('it-IT');
-    const timeStr = now.toLocaleTimeString('it-IT', {hour: '2-digit', minute:'2-digit'});
-    
-    const timestampHtml = `<br><div class="session-timestamp">📅 ${dateStr} - ${timeStr}</div><br>`;
-    
-    const editor = document.getElementById('editor');
-    
-    // Controllo per non aggiungerlo se il file è vuoto (opzionale, ma meglio metterlo)
-    // O se l'ultima cosa scritta è già un timestamp (per evitare refresh multipli)
-    if (!editor.innerHTML.includes(timestampHtml.trim())) {
-         // Usiamo una selezione range per appendere alla fine in modo sicuro o innerHTML
-         editor.innerHTML += timestampHtml;
-         // Salviamo subito per persistere il timestamp
-         saveData();
-    }
-    
-    isSessionInitialized = true;
-}
-
-// --- CORE FUNCTIONS ---
-
-window.changeDate = (newDate) => { 
-    // newDate sarà YYYY-MM
-    currentDateString = newDate; 
-    isSessionInitialized = false; // Reset flag cambio data
-    loadDiaryForDate(newDate); 
-};
-
-async function loadDiaryForDate(dateStr) {
-    document.getElementById('db-status').innerText = "Loading...";
-    document.getElementById('editor').innerHTML = ""; 
-    
-    // NOTA: dateStr ora è YYYY-MM
-    const docRef = doc(db, "diario", currentUser.uid, "entries", dateStr);
-    
-    // Usiamo onSnapshot per real-time updates
-    onSnapshot(docRef, (snap) => {
-        if (snap.exists()) {
-            const data = snap.data();
-            
-            // Aggiorniamo l'editor solo se non stiamo scrivendo attivamente per evitare conflitti cursore
-            // Ma al primo caricamento dobbiamo farlo.
-            if (document.activeElement.id !== 'editor') { 
-                document.getElementById('editor').innerHTML = data.htmlContent || ""; 
-            }
-            
-            // Qui proviamo ad appendere il timestamp SE è il caricamento iniziale
-            if (!isSessionInitialized) {
-                // Piccolo timeout per assicurarsi che l'HTML sia renderizzato
-                setTimeout(() => appendSessionTimestamp(), 500);
-            }
-
-            currentDayStats = data.stats || {};
-            currentTags = data.tags || [];
-            
-            const words = updateCounts();
-            updateMetrics(data.htmlContent || "", words);
-            
-            document.getElementById('db-status').innerText = "Sync OK";
-            document.getElementById('db-status').style.color = "#00e676";
-        } else {
-            // Nuovo Mese
-            document.getElementById('editor').innerHTML = ""; 
-            updateMetrics("", 0);
-            document.getElementById('db-status').innerText = "New Month";
-            document.getElementById('db-status').style.color = "#aaa";
-            
-            // Anche se è nuovo, mettiamo il timestamp
-            if (!isSessionInitialized) {
-                 setTimeout(() => appendSessionTimestamp(), 500);
+            if (isMulti && wasLevel === 'min') {
+                currentHabits.push(habitId); currentLevels[habitId] = 'max'; globalData.score += rewardMax; actionType = 'done';
             }
         }
-    });
-}
-
-async function saveData() {
-    if (!currentUser) return;
-    const statusLabel = document.getElementById('db-status');
-    statusLabel.innerText = "Saving...";
-    statusLabel.style.color = "orange";
-
-    try {
-        const content = document.getElementById('editor').innerHTML;
-        const wordsToday = updateCounts();
-        const detectedTags = detectTagsInContent(document.getElementById('editor').innerText);
-
-        // Calcolo Delta per Statistiche Globali
-        const wordsBefore = currentDayStats.words || 0;
-        const deltaWords = wordsToday - wordsBefore;
-
-        const dataToSave = {
-            htmlContent: content,
-            stats: { words: wordsToday, mood: currentDayStats.mood || "" }, 
-            tags: detectedTags,
-            lastUpdate: new Date()
-        };
-
-        await setDoc(doc(db, "diario", currentUser.uid, "entries", currentDateString), dataToSave, { merge: true });
-
-        if (deltaWords !== 0 || globalWordCount === 0) { 
-            let newGlobalCount = globalWordCount + deltaWords;
-            if (newGlobalCount < 0) newGlobalCount = 0; 
-            
-            await setDoc(doc(db, "diario", currentUser.uid, "stats", "global"), {
-                totalWords: newGlobalCount,
-                lastUpdate: new Date()
-            }, { merge: true });
-        }
-
-        statusLabel.innerText = "Saved";
-        statusLabel.style.color = "#00e676";
-        updateMetrics(content, wordsToday);
-
-    } catch (error) {
-        console.error(error);
-        statusLabel.innerText = "ERROR";
-        statusLabel.style.color = "red";
+        if (habitIndex >= 0 && currentHabits.includes(habitId)) habitsArr[habitIndex].lastDone = dateStr; 
     }
-}
 
-// --- UTILS, STATS & OTHERS ---
-// Mantenute identiche, solo pulizia variabili non usate
-
-function startSessionTimer() {
-    sessionStartTime = Date.now();
-    setInterval(() => {
-        const diff = Math.floor((Date.now() - sessionStartTime) / 1000);
-        const m = Math.floor(diff / 60).toString().padStart(2, '0');
-        const s = (diff % 60).toString().padStart(2, '0');
-        document.getElementById('session-timer').innerText = `${m}:${s}`;
-    }, 1000);
-}
-
-function loadGlobalStats() {
-    const docRef = doc(db, "diario", currentUser.uid, "stats", "global");
-    onSnapshot(docRef, (snap) => {
-        if (snap.exists()) { globalWordCount = snap.data().totalWords || 0; } 
-        else { globalWordCount = 0; }
-        document.getElementById('count-global').innerText = globalWordCount;
-    });
-}
-
-function updateMetrics(content, wordsToday) {
-    document.getElementById('count-today').innerText = wordsToday;
-    document.getElementById('stat-count-today').innerText = wordsToday;
-
-    const size = new Blob([content]).size;
-    const kb = (size / 1024).toFixed(1);
-    const weightEl = document.getElementById('file-weight');
-    weightEl.innerText = `${kb} KB`;
+    dailyLogs[dateStr] = { habits: currentHabits, failedHabits: currentFailed, habitLevels: currentLevels, purchases: entry.purchases || [] };
+    await updateDoc(ref, { score: globalData.score, dailyLogs: dailyLogs, habits: habitsArr });
+    logHistory(currentUser, globalData.score);
     
-    if (size > 800000) { weightEl.classList.add('metric-danger'); weightEl.innerText += " ⚠️"; }
-    else { weightEl.classList.remove('metric-danger'); }
-}
-
-function initializeAi(apiKey) { aiInstance = new GoogleGenAI({ apiKey: apiKey }); }
-
-window.saveApiKey = () => {
-    const key = document.getElementById('gemini-api-key').value.trim();
-    if(key) { localStorage.setItem('GEMINI_API_KEY', key); initializeAi(key); alert("Chiave salvata!"); document.getElementById('settings-modal').classList.remove('open'); }
+    if(actionType === 'done') {
+        if(dateStr === getDateString(new Date())) confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 }, colors: [currentUser=='flavio'?'#ffca28':'#d05ce3'] });
+        showToast("Completata!", "✅");
+    } else if (actionType === 'failed') showToast("Segnata come fallita", "❌");
 };
 
-window.generateAiSummary = async () => {
-    if (!aiInstance) { alert("Inserisci API Key nelle Impostazioni"); return; }
-    const text = document.getElementById('editor').innerText.trim();
-    if (text.length < 30) { alert("Scrivi di più!"); return; }
-    document.getElementById('summary-modal').classList.add('open');
-    const contentDiv = document.getElementById('ai-summary-content');
-    contentDiv.innerHTML = '<div class="ai-loading">Analizzo... 🧠</div>';
-    const prompt = `Analizza questo diario:\n"${text}"\n\n1. Riassunto.\n2. Insight Emotivo.\n3. Consiglio. Formatta la risposta in Markdown.`;
-    try {
-        const response = await aiInstance.models.generateContent({ model: 'gemini-pro', contents: prompt });
-        contentDiv.innerHTML = marked.parse(response.text);
-    } catch (error) { contentDiv.innerHTML = "Errore AI."; }
+window.buyReward = async (name, cost) => {
+    if(globalData.score < cost) { 
+        if(!confirm(`Attenzione: Saldo insufficiente (${globalData.score}). Andrai in negativo. Continuare?`)) return;
+    } else {
+        if(!confirm(`Comprare ${name} per ${cost}?`)) return;
+    }
+    
+    const dateStr = getDateString(viewDate);
+    const ref = doc(db, "users", currentUser);
+    let entry = globalData.dailyLogs?.[dateStr] || {};
+    let currentPurchases = Array.isArray(entry) ? [] : (entry.purchases || []);
+    
+    currentPurchases.push({ name, cost, time: Date.now() });
+    let newScore = globalData.score - parseInt(cost);
+    let newEntry = { habits: entry.habits || [], failedHabits: entry.failedHabits || [], habitLevels: entry.habitLevels || {}, purchases: currentPurchases };
+    let dailyLogs = globalData.dailyLogs || {};
+    dailyLogs[dateStr] = newEntry;
+    
+    await updateDoc(ref, { score: newScore, dailyLogs: dailyLogs });
+    logHistory(currentUser, newScore);
+    vibrate('heavy'); confetti({ shapes: ['circle'], colors: ['#4caf50'] }); showToast("Acquisto effettuato!", "🛍️");
 };
 
-const tagRules = {
-    'Relazioni': ['simona', 'nala', 'mamma', 'papà', 'amici', 'relazione'],
-    'Salute': ['cibo', 'dieta', 'fumo', 'allenamento', 'sonno', 'salute'],
-    'Lavoro': ['progetto', 'app', 'business', 'soldi', 'produttività'],
-    'Mindset': ['gratitudine', 'ansia', 'felice', 'triste', 'paura']
+window.refundPurchase = async (idx, cost) => {
+    if(!confirm("Annullare acquisto e rimborsare punti?")) return;
+    const dateStr = getDateString(viewDate);
+    const ref = doc(db, "users", currentUser);
+    let entry = globalData.dailyLogs[dateStr];
+    entry.purchases.splice(idx, 1);
+    let newScore = globalData.score + parseInt(cost);
+    await updateDoc(ref, { score: newScore, dailyLogs: globalData.dailyLogs });
+    logHistory(currentUser, newScore);
+    vibrate('light'); showToast("Rimborsato!", "↩️");
 };
 
-function detectTagsInContent(text) {
-    const lower = text.toLowerCase();
-    const found = new Set();
-    for (const [tag, keywords] of Object.entries(tagRules)) { if (keywords.some(k => lower.includes(k))) found.add(tag); }
-    return Array.from(found);
-}
-
-window.openTagExplorer = () => {
-    document.getElementById('tag-modal').classList.add('open');
-    const cloud = document.getElementById('tag-cloud'); cloud.innerHTML = '';
-    Object.keys(tagRules).forEach(tag => {
-        const btn = document.createElement('span'); btn.className = 'tag-chip'; btn.innerText = tag; btn.onclick = () => searchByTag(tag); cloud.appendChild(btn);
-    });
-};
-
-async function searchByTag(tagName) {
-    const resultsDiv = document.getElementById('tag-results');
-    resultsDiv.innerHTML = "Cerco...";
-    // Nota: La ricerca per tag ora cercherà nei documenti MENSILI.
-    const q = query(collection(db, "diario", currentUser.uid, "entries"), where("tags", "array-contains", tagName));
-    const querySnapshot = await getDocs(q);
-    resultsDiv.innerHTML = '';
-    if (querySnapshot.empty) { resultsDiv.innerHTML = "Nessun risultato."; return; }
-    querySnapshot.forEach((doc) => {
-        const d = doc.data();
-        const div = document.createElement('div'); div.className = 'result-row';
-        div.innerHTML = `<span>🗓️ ${doc.id}</span> <span>${d.stats?.words || 0} parole</span>`;
-        div.onclick = () => { document.getElementById('tag-modal').classList.remove('open'); document.getElementById('date-picker').value = doc.id; changeDate(doc.id); };
-        resultsDiv.appendChild(div);
-    });
-}
-
-window.handleKeyUp = (e) => { if (e.key === 'Enter') processLastBlock(); };
-function processLastBlock() { 
-     const selection = window.getSelection(); if (!selection.rangeCount) return; let block = selection.getRangeAt(0).startContainer; while (block && block.id !== 'editor' && block.tagName !== 'DIV' && block.tagName !== 'P') { block = block.parentNode; } if (block && block.previousElementSibling) { const prevBlock = block.previousElementSibling; if (!prevBlock.querySelector('.auto-tag') && prevBlock.innerText.trim().length > 10) { const tag = analyzeTextForTag(prevBlock.innerText); if (tag) { const tagSpan = document.createElement('span'); tagSpan.className = 'auto-tag'; tagSpan.innerText = tag; tagSpan.contentEditable = "false"; prevBlock.prepend(tagSpan); saveData(); } } }
-}
-function analyzeTextForTag(text) { const lower = text.toLowerCase(); for (const [tag, keywords] of Object.entries(tagRules)) { if (keywords.some(k => lower.includes(k))) return tag; } return null; }
-
-let walkRecognition = null; let isWalkSessionActive = false;
-window.openWalkTalk = () => document.getElementById('walk-talk-modal').classList.add('open');
-window.closeWalkTalk = () => { stopWalkSession(); document.getElementById('walk-talk-modal').classList.remove('open'); };
-window.toggleWalkSession = () => { if(isWalkSessionActive) stopWalkSession(); else startWalkSession(); };
-function startWalkSession() {
-    if (!('webkitSpeechRecognition' in window)) { alert("No speech support"); return; }
-    isWalkSessionActive = true; document.getElementById('walk-mic-btn').classList.add('active'); document.getElementById('walk-status').innerText = "Ascolto...";
-    walkRecognition = new webkitSpeechRecognition(); walkRecognition.continuous = false; walkRecognition.lang = 'it-IT';
-    walkRecognition.onresult = (e) => {
-        const t = e.results[0][0].transcript; document.getElementById('walk-transcript').innerText = t;
-        const time = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
-        document.getElementById('editor').innerHTML += `<div style="margin-top:10px;"><b>🗣️ Walk (${time}):</b> ${t}</div>`;
-        saveData(); 
-        setTimeout(() => { if(isWalkSessionActive) walkRecognition.start(); }, 1500);
+window.updateDetailedChart = (days) => {
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { console.log("Dati non pronti"); return; }
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(`filter${days}`).classList.add('active');
+    const ctx = document.getElementById('detailedChart').getContext('2d');
+    const labels = []; const dates = [];
+    for(let i=days-1; i>=0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const str = d.toISOString().split('T')[0];
+        dates.push(str); labels.push(`${d.getDate()}/${d.getMonth()+1}`);
+    }
+    const getPoints = (userData) => {
+        if(!userData || !userData.dailyLogs) return new Array(days).fill(0);
+        return dates.map(date => {
+            const entry = userData.dailyLogs[date] || {};
+            let doneArr = Array.isArray(entry) ? entry : (entry.habits || []);
+            let failedArr = entry.failedHabits || [];
+            let levels = entry.habitLevels || {};
+            let purchases = entry.purchases || [];
+            let net = 0;
+            doneArr.forEach(hId => {
+                const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(h) {
+                    const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                    const rMax = window.getItemValueAtDate(h, 'reward', date);
+                    let lvl = levels[hId] || 'max';
+                    if (isM && lvl === 'min') net += rMin; else net += rMax;
+                }
+            });
+            failedArr.forEach(hId => {
+                const h = userData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+                if(h) net -= window.getItemValueAtDate(h, 'penalty', date);
+            });
+            let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0);
+            return net - spent;
+        });
     };
-    walkRecognition.start();
+    const flavioPoints = getPoints(allUsersData.flavio);
+    const simonaPoints = getPoints(allUsersData.simona);
+    if(detailedChartInstance) detailedChartInstance.destroy();
+    detailedChartInstance = new Chart(ctx, {
+        type: 'line', 
+        data: { labels: labels, datasets: [ { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', borderWidth:2, pointRadius: 5 }, { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', borderWidth:2, pointRadius: 5 } ] },
+        options: { 
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, 
+            scales: { y: { grid: { color: '#333' } }, x: { grid: { color: '#333' } } },
+            onClick: async (e, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const dateStr = dates[index];
+                    const niceDate = labels[index] + "/" + new Date().getFullYear();
+                    const fVal = flavioPoints[index];
+                    const sVal = simonaPoints[index];
+                    document.getElementById('nodeInfo').style.display = 'block';
+                    document.getElementById('nodeDate').innerText = niceDate;
+                    document.getElementById('nodeValFlavio').innerText = (fVal>0?'+':'')+fVal;
+                    document.getElementById('nodeValSimona').innerText = (sVal>0?'+':'')+sVal;
+                    document.getElementById('nodeNote').innerText = "Caricamento nota...";
+                    try {
+                        const snap = await getDoc(doc(db, "shared_notes", dateStr));
+                        if (snap.exists()) { document.getElementById('nodeNote').innerText = snap.data().text || "Nessuna nota scritta."; } 
+                        else { document.getElementById('nodeNote').innerText = "Nessuna nota scritta."; }
+                    } catch(err) { document.getElementById('nodeNote').innerText = "Errore caricamento nota."; }
+                }
+            }
+        }
+    });
 }
-function stopWalkSession() { isWalkSessionActive = false; document.getElementById('walk-mic-btn').classList.remove('active'); document.getElementById('walk-status').innerText = "Stop"; if(walkRecognition) walkRecognition.stop(); }
-
-let timeout;
-document.getElementById('editor').addEventListener('input', () => { updateCounts(); clearTimeout(timeout); timeout = setTimeout(saveData, 1500); });
-document.getElementById('editor').addEventListener('paste', (e) => { e.preventDefault(); const text = (e.originalEvent || e).clipboardData.getData('text/plain'); document.execCommand('insertText', false, text); });
-
-function updateCounts() {
-    const text = document.getElementById('editor').innerText;
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    updateMetrics(document.getElementById('editor').innerHTML, words);
-    return words;
+window.openAnalytics = () => { 
+    if(!allUsersData || !allUsersData.flavio || !allUsersData.simona) { showToast("Caricamento dati...", "⏳"); return; } 
+    document.getElementById('analyticsModal').style.display = 'flex'; 
+    updateDetailedChart(30); 
 }
 
-window.format = (cmd) => { document.execCommand(cmd, false, null); document.getElementById('editor').focus(); };
-window.insertMood = (e) => { document.execCommand('insertText', false, ` ${e} `); currentDayStats.mood = e; saveData(); };
-window.triggerImageUpload = () => document.getElementById('img-input').click();
-window.handleImageUpload = (input) => { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { const img = new Image(); img.src = e.target.result; img.onload = () => { const c = document.createElement('canvas'); const ctx = c.getContext('2d'); const scale = 600 / img.width; c.width = 600; c.height = img.height * scale; ctx.drawImage(img, 0, 0, c.width, c.height); document.execCommand('insertHTML', false, `<img src="${c.toDataURL('image/jpeg', 0.7)}"><br>`); saveData(); }; }; reader.readAsDataURL(file); };
+window.openStats = () => {
+    if (!globalData || !globalData.dailyLogs) return;
+    let totalNet = 0; let daysCount = 0;
+    let maxNet = -Infinity; let bestDay = '-';
+    let minNet = Infinity; let worstDay = '-';
+    let habitCounts = {}; let rewardCounts = {};
+    let tagScores = {}; 
+    const tagsMap = {}; (globalData.tags || []).forEach(t => tagsMap[t.id] = t);
+    let dowStats = {0:{sum:0, count:0}, 1:{sum:0, count:0}, 2:{sum:0, count:0}, 3:{sum:0, count:0}, 4:{sum:0, count:0}, 5:{sum:0, count:0}, 6:{sum:0, count:0}};
 
-let recognition = null; if ('webkitSpeechRecognition' in window) { recognition = new webkitSpeechRecognition(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'it-IT'; recognition.onstart = () => document.getElementById('mic-btn').classList.add('recording'); recognition.onend = () => document.getElementById('mic-btn').classList.remove('recording'); recognition.onresult = (e) => { let final = ''; for (let i = e.resultIndex; i < e.results.length; ++i) { if (e.results[i].isFinal) final += e.results[i][0].transcript; } if (final) { document.execCommand('insertText', false, final + " "); saveData(); } }; }
-window.toggleDictation = () => { if(recognition) { document.getElementById('mic-btn').classList.contains('recording') ? recognition.stop() : recognition.start(); } else alert("No support"); };
+    const dates = Object.keys(globalData.dailyLogs).sort();
+    dates.forEach(date => {
+        daysCount++;
+        const entry = globalData.dailyLogs[date];
+        let doneArr = [], failedArr = [], purchases = [];
+        let levels = entry.habitLevels || {};
+        if (Array.isArray(entry)) { doneArr = entry; } 
+        else { doneArr = entry.habits || []; failedArr = entry.failedHabits || []; purchases = entry.purchases || []; }
 
-window.openStats = () => { document.getElementById('stats-modal').classList.add('open'); renderChart(); };
-window.openSettings = () => document.getElementById('settings-modal').classList.add('open');
-window.toggleTheme = () => { document.body.classList.toggle('light-mode'); localStorage.setItem('theme', document.body.classList.contains('light-mode')?'light':'dark'); };
-window.exportData = () => { const b = new Blob([document.getElementById('editor').innerHTML],{type:'text/html'}); const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`backup_${currentDateString}.html`; a.click(); };
+        let dayEarn = 0; let daySpent = 0;
+        doneArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) {
+                habitCounts[h.name] = (habitCounts[h.name] || 0) + 1;
+                const isM = window.getItemValueAtDate(h, 'isMulti', date);
+                const rMin = window.getItemValueAtDate(h, 'rewardMin', date);
+                const rMax = window.getItemValueAtDate(h, 'reward', date);
+                let lvl = levels[hId] || 'max';
+                let points = (isM && lvl === 'min') ? rMin : rMax;
+                dayEarn += points;
+                const tId = h.tagId || 'uncategorized';
+                tagScores[tId] = (tagScores[tId] || 0) + points;
+            }
+        });
+        failedArr.forEach(hId => {
+            const h = globalData.habits.find(x => (x.id || x.name.replace(/[^a-zA-Z0-9]/g, '')) === hId);
+            if(h) daySpent += window.getItemValueAtDate(h, 'penalty', date);
+        });
+        purchases.forEach(p => { rewardCounts[p.name] = (rewardCounts[p.name] || 0) + 1; daySpent += parseInt(p.cost); });
 
-function renderChart() { const ctx = document.getElementById('chartCanvas').getContext('2d'); if(window.myChart) window.myChart.destroy(); window.myChart = new Chart(ctx, { type:'bar', data:{labels:['Mese Corrente'], datasets:[{label:'Parole', data:[currentDayStats.words || 0], backgroundColor:'#7c4dff'}]}, options:{plugins:{legend:{display:false}}, scales:{x:{display:false}, y:{grid:{color:'#333'}}}} }); }
+        let dayNet = dayEarn - daySpent;
+        totalNet += dayNet;
+        if (dayNet > maxNet) { maxNet = dayNet; bestDay = date; }
+        if (dayNet < minNet) { minNet = dayNet; worstDay = date; }
+        const dObj = new Date(date);
+        const dayOfWeek = dObj.getDay(); 
+        dowStats[dayOfWeek].sum += dayNet;
+        dowStats[dayOfWeek].count++;
+    });
+
+    if(pieChartInstance) pieChartInstance.destroy();
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    let pieLabels = []; let pieData = []; let pieColors = [];
+    Object.keys(tagScores).forEach(tId => {
+        if(tId === 'uncategorized') { pieLabels.push('Senza Categoria'); pieColors.push('#666666'); } 
+        else { const tObj = tagsMap[tId]; if(tObj) { pieLabels.push(tObj.name); pieColors.push(tObj.color); } }
+        pieData.push(tagScores[tId]);
+    });
+
+    pieChartInstance = new Chart(pieCtx, {
+        type: 'doughnut',
+        data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors, borderWidth: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+
+    const daysName = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    let bestDow = -1; let maxDowAvg = -Infinity; let worstDow = -1; let minDowAvg = Infinity;
+    for(let i=0; i<7; i++) {
+        if(dowStats[i].count > 0) {
+            let avg = dowStats[i].sum / dowStats[i].count;
+            if(avg > maxDowAvg) { maxDowAvg = avg; bestDow = i; }
+            if(avg < minDowAvg) { minDowAvg = avg; worstDow = i; }
+        }
+    }
+
+    const avg = daysCount > 0 ? (totalNet / daysCount).toFixed(1) : 0;
+    let bestHabit = Object.keys(habitCounts).reduce((a, b) => habitCounts[a] > habitCounts[b] ? a : b, '-');
+    let favReward = Object.keys(rewardCounts).reduce((a, b) => rewardCounts[a] > rewardCounts[b] ? a : b, '-');
+
+    const html = `
+        <div class="stat-card"><span class="stat-val">${avg}</span><span class="stat-label">Media Netta</span></div>
+        <div class="stat-card"><span class="stat-val">${daysCount}</span><span class="stat-label">Giorni Attivi</span></div>
+        <div class="stat-card" style="border-color:var(--success)"><span class="stat-val" style="color:var(--success)">${bestDow>=0 ? daysName[bestDow] : '-'}</span><span class="stat-label">Giorno Top (Med: ${maxDowAvg.toFixed(0)})</span></div>
+        <div class="stat-card" style="border-color:var(--danger)"><span class="stat-val" style="color:var(--danger)">${worstDow>=0 ? daysName[worstDow] : '-'}</span><span class="stat-label">Giorno Flop (Med: ${minDowAvg.toFixed(0)})</span></div>
+        <div class="stat-card" style="border-color:var(--theme-color); opacity:0.8"><span class="stat-val" style="color:var(--theme-color); font-size:1em">+${maxNet === -Infinity ? 0 : maxNet} (${bestDay.split('-').reverse().join('/')})</span><span class="stat-label">Record Assoluto</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${bestHabit}</span><span class="stat-label">Abitudine Costante</span></div>
+        <div class="stat-card" style="grid-column: span 2"><span class="stat-val" style="font-size:1.1em">${favReward}</span><span class="stat-label">Premio Preferito</span></div>
+    `;
+    document.getElementById('statsContent').innerHTML = html;
+    document.getElementById('statsModal').style.display = 'flex';
+}
+
+window.toggleMultiInput = (prefix) => {
+    // FIX: Non tocca più la descrizione (che è sempre visibile)
+    const isMulti = document.getElementById(`${prefix}IsMulti`).checked;
+    document.getElementById(`${prefix}MinInputGroup`).style.display = isMulti ? 'block' : 'none';
+    const rewardLbl = document.getElementById(prefix === 'new' ? 'lblNewReward' : 'lblEditReward');
+    rewardLbl.innerText = isMulti ? 'Reward (Max)' : 'Reward';
+}
+
+window.setAddType = (t) => {
+    addType = t;
+    document.querySelectorAll('.switch-opt').forEach(el => el.classList.remove('active'));
+    document.getElementById(t==='habit'?'typeHabit':'typeReward').classList.add('active');
+    if(recurMode === 'recur') document.getElementById('modeRecur').classList.add('active'); 
+    else if(recurMode === 'single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); 
+
+    document.getElementById('habitInputs').style.display = t==='habit'?'block':'none'; 
+    document.getElementById('rewardInputs').style.display = t==='reward'?'block':'none';
+    const sel = document.getElementById('newTag'); sel.innerHTML = '<option value="">Nessun Tag</option>';
+    (globalData.tags || []).forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+}
+
+window.setRecurMode = (m) => {
+    recurMode = m;
+    // Reset classi
+    document.getElementById('modeRecur').classList.remove('active'); 
+    document.getElementById('modeSingle').classList.remove('active');
+    document.getElementById('modeIf').classList.remove('active');
+    
+    // Attiva classe corretta
+    if(m==='recur') document.getElementById('modeRecur').classList.add('active');
+    else if(m==='single') document.getElementById('modeSingle').classList.add('active');
+    else document.getElementById('modeIf').classList.add('active'); // IF
+
+    // Gestione visibilità input
+    const recurInput = document.getElementById('recurInput');
+    const dateInput = document.getElementById('dateInput');
+    const penaltyInput = document.getElementById('groupNewPenalty');
+
+    if(m === 'recur') {
+        recurInput.style.display = 'block';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'visible';
+    } else if (m === 'single') {
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'block';
+        penaltyInput.style.visibility = 'visible';
+        document.getElementById('newTargetDate').value = new Date().toISOString().split('T')[0];
+    } else { // IF MODE
+        recurInput.style.display = 'none';
+        dateInput.style.display = 'none';
+        penaltyInput.style.visibility = 'hidden'; // Nascondi penalità
+    }
+}
+
+window.openEditModal = (id, type) => {
+    editingType = type;
+    const list = type === 'habit' ? globalData.habits : globalData.rewards;
+    editingItem = list.find(i => i.id === id);
+    if(!editingItem) return;
+    document.getElementById('editName').value = editingItem.name; document.getElementById('editNote').value = ''; document.getElementById('editDate').value = new Date().toISOString().split('T')[0];
+    const tagSel = document.getElementById('editTag'); tagSel.innerHTML = '<option value="">Nessun Tag</option>';
+    (globalData.tags || []).forEach(t => { const opt = document.createElement('option'); opt.value = t.id; opt.innerText = t.name; tagSel.appendChild(opt); });
+    tagSel.value = editingItem.tagId || "";
+    if (type === 'habit') {
+        document.getElementById('editHabitFields').style.display = 'block'; document.getElementById('editRewardFields').style.display = 'none';
+        const isMulti = editingItem.isMulti || false; document.getElementById('editIsMulti').checked = isMulti; toggleMultiInput('edit'); 
+        document.getElementById('editVal1').value = editingItem.reward; document.getElementById('editVal2').value = editingItem.penalty; document.getElementById('editRewardMin').value = editingItem.rewardMin || 0; document.getElementById('editDesc').value = editingItem.description || "";
+    } else {
+        document.getElementById('editHabitFields').style.display = 'none'; document.getElementById('editRewardFields').style.display = 'block'; document.getElementById('editCost').value = editingItem.cost; document.getElementById('editDesc').value = "";
+    }
+    renderEditHistory(editingItem, type);
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function renderEditHistory(item, type) {
+    const container = document.getElementById('editHistoryLog'); container.innerHTML = '';
+    let changes = item.changes ? item.changes.slice().sort((a, b) => a.date.localeCompare(b.date)) : [];
+    if (changes.length === 0) { container.innerHTML = '<div class="history-item"><div class="history-date">In origine</div>Creata con valore corrente.</div>'; return; }
+    let html = '';
+    changes.forEach((change, index) => {
+        let dateFmt = change.date.split('-').reverse().join('/'); 
+        let noteHtml = change.note ? `<div class="history-note">${change.note}</div>` : ''; 
+        let text = '';
+        
+        if (index === 0) {
+            text = "Creazione iniziale";
+        } else {
+            if (change.note && change.note.includes("Modifica:")) {
+                text = "Aggiornamento valori";
+            } else {
+                text = "Modifica dettagli";
+            }
+        }
+        html += `<div class="history-item"><div class="history-date">${dateFmt}</div><div>${text}</div>${noteHtml}</div>`;
+    });
+    container.innerHTML = html;
+}
+
+window.saveEdit = async () => {
+    if(!editingItem) return;
+    const newName = document.getElementById('editName').value; 
+    const editDate = document.getElementById('editDate').value; 
+    let editNote = document.getElementById('editNote').value.trim(); 
+    const newTag = document.getElementById('editTag').value; 
+    const newDesc = document.getElementById('editDesc').value;
+    
+    if(!editDate) { alert("Data obbligatoria"); return; }
+    
+    // Genera LOG AUTOMATICO
+    let logs = [];
+    if(editingItem.name !== newName) logs.push(`Nome: ${editingItem.name} → ${newName}`);
+    if(editingType === 'habit') {
+        const val1 = parseInt(document.getElementById('editVal1').value) || 0;
+        const val2 = parseInt(document.getElementById('editVal2').value) || 0;
+        const valMin = parseInt(document.getElementById('editRewardMin').value) || 0;
+        if(editingItem.reward !== val1) logs.push(`Max: ${editingItem.reward} → ${val1}`);
+        if(editingItem.penalty !== val2) logs.push(`Penalty: ${editingItem.penalty} → ${val2}`);
+        if((editingItem.rewardMin||0) !== valMin) logs.push(`Min: ${editingItem.rewardMin||0} → ${valMin}`);
+    } else {
+        const cost = parseInt(document.getElementById('editCost').value) || 0;
+        if(editingItem.cost !== cost) logs.push(`Costo: ${editingItem.cost} → ${cost}`);
+    }
+
+    if (logs.length > 0 && editNote === "") {
+        editNote = "Modifica: " + logs.join(", ");
+    }
+
+    editingItem.name = newName; editingItem.tagId = newTag;
+    let newChangeEntry = { date: editDate }; 
+    if (editNote !== "") newChangeEntry.note = editNote;
+    
+    if (editingType === 'habit') { 
+        const val1 = parseInt(document.getElementById('editVal1').value) || 0; 
+        const val2 = parseInt(document.getElementById('editVal2').value) || 0; 
+        const rewardMin = parseInt(document.getElementById('editRewardMin').value) || 0; 
+        const isMulti = document.getElementById('editIsMulti').checked;
+        
+        newChangeEntry.reward = val1; newChangeEntry.penalty = val2; newChangeEntry.isMulti = isMulti; newChangeEntry.rewardMin = rewardMin; newChangeEntry.description = newDesc;
+        
+        editingItem.reward = val1; editingItem.penalty = val2; editingItem.isMulti = isMulti; editingItem.rewardMin = rewardMin; editingItem.description = newDesc;
+    } else { 
+        const cost = parseInt(document.getElementById('editCost').value) || 0; 
+        newChangeEntry.cost = cost; 
+        editingItem.cost = cost; 
+        // FIX: Salva descrizione per premi
+        editingItem.description = newDesc;
+    }
+    
+    if (!editingItem.changes) {
+        let initialEntry = { date: '2020-01-01', note: 'Creazione Iniziale' }; 
+        if (editingType === 'habit') { initialEntry.reward = editingItem.reward; initialEntry.penalty = editingItem.penalty; initialEntry.isMulti = editingItem.isMulti || false; initialEntry.rewardMin = editingItem.rewardMin || 0; initialEntry.description = editingItem.description || ""; } 
+        else { initialEntry.cost = editingItem.cost; }
+        editingItem.changes = [initialEntry];
+    }
+    
+    editingItem.changes = editingItem.changes.filter(c => c.date !== editDate); 
+    editingItem.changes.push(newChangeEntry); 
+    editingItem.changes.sort((a, b) => a.date.localeCompare(b.date));
+    
+    const ref = doc(db, "users", currentUser);
+    if(editingType === 'habit') await updateDoc(ref, { habits: globalData.habits }); else await updateDoc(ref, { rewards: globalData.rewards });
+    document.getElementById('editModal').style.display = 'none'; editingItem = null; scheduleRenderView(); showToast("Salvato!", "✏️");
+}
+
+window.deleteItemForever = async () => {
+    if(!editingItem) return;
+    if(!confirm("SEI SICURO? ⚠️\nQuesta azione eliminerà DEFINITIVAMENTE l'abitudine e tutto il suo storico.\nNon potrai tornare indietro.")) return;
+
+    const listName = editingType === 'habit' ? 'habits' : 'rewards';
+    let list = globalData[listName];
+    
+    const newList = list.filter(i => i.id !== editingItem.id);
+    
+    const ref = doc(db, "users", currentUser);
+    await updateDoc(ref, { [listName]: newList });
+    
+    document.getElementById('editModal').style.display = 'none';
+    editingItem = null;
+    showToast("Eliminato per sempre", "🗑️");
+};
+
+window.addItem = async () => {
+    let name = document.getElementById('newName').value; 
+    const tag = document.getElementById('newTag').value; 
+    
+    let startDateInput = document.getElementById('newStartDate').value;
+    if (!startDateInput) startDateInput = new Date().toISOString().split('T')[0];
+
+    // FIX: Leggi la descrizione anche qui, prima del bivio
+    const desc = document.getElementById('newDesc').value || "";
+
+    if(!name) { vibrate('heavy'); return; }
+    
+    const id = Date.now().toString(); 
+    const ref = doc(db, "users", currentUser);
+    
+    try {
+        if(addType === 'habit') {
+            const r = parseInt(document.getElementById('newReward').value) || 0; 
+            const p = parseInt(document.getElementById('newPenalty').value) || 0; 
+            const freq = document.getElementById('newFrequency').value || 1; 
+            const targetDate = document.getElementById('newTargetDate').value; 
+            const isMulti = document.getElementById('newIsMulti').checked; 
+            const rewardMin = parseInt(document.getElementById('newRewardMin').value) || 0; 
+            
+            let finalPenalty = p;
+            let finalFreq = freq;
+            if(recurMode === 'if') {
+                finalPenalty = 0; 
+                finalFreq = 1;   
+            }
+
+            let newHabit = { 
+                id, name, 
+                reward:r, 
+                penalty: finalPenalty, 
+                tagId: tag, type: recurMode, 
+                isMulti: isMulti, rewardMin: rewardMin, description: desc,
+                changes: [{
+                    date: startDateInput,
+                    reward: r, penalty: finalPenalty, isMulti: isMulti, rewardMin: rewardMin, description: desc,
+                    note: "Creazione Iniziale"
+                }]
+            };
+
+            if (recurMode === 'recur') newHabit.frequency = parseInt(finalFreq); 
+            else if (recurMode === 'single') newHabit.targetDate = targetDate;
+            
+            await updateDoc(ref, { habits: arrayUnion(newHabit) });
+        } else { 
+            const c = document.getElementById('newCost').value || 0; 
+            
+            // FIX: Salvataggio descrizione e storico per i premi
+            await updateDoc(ref, { 
+                rewards: arrayUnion({
+                    id, name, cost:c, tagId: tag, description: desc,
+                    changes: [{ date: startDateInput, cost: c, note: "Creazione Iniziale" }]
+                }) 
+            }); 
+        }
+        document.getElementById('addModal').style.display='none'; document.getElementById('newName').value=''; vibrate('light'); showToast("Salvato!", "💾");
+    } catch(e) { console.error(e); }
+};
+
+function setupNoteListener(dateStr) {
+    if (currentNoteUnsubscribe) { currentNoteUnsubscribe(); currentNoteUnsubscribe = null; }
+    const textArea = document.getElementById('dailyNoteArea'); textArea.value = ""; document.getElementById('noteStatus').innerText = "Caricamento...";
+    const noteRef = doc(db, "shared_notes", dateStr);
+    currentNoteUnsubscribe = onSnapshot(noteRef, (docSnap) => {
+        if (docSnap.exists()) { if (document.activeElement !== textArea) textArea.value = docSnap.data().text || ""; document.getElementById('noteStatus').innerText = "Sincronizzato"; } 
+        else { if (document.activeElement !== textArea) textArea.value = ""; document.getElementById('noteStatus').innerText = "Nessuna nota"; }
+    });
+}
+window.handleNoteInput = (val) => {
+    document.getElementById('noteStatus').innerText = "Salvataggio..."; clearTimeout(noteDebounceTimer);
+    noteDebounceTimer = setTimeout(async () => { const dateStr = getDateString(viewDate); const noteRef = doc(db, "shared_notes", dateStr); await setDoc(noteRef, { text: val }, { merge: true }); document.getElementById('noteStatus').innerText = "Salvato"; }, 1000);
+}
+function calculateStreak(habitId) {
+    let streak = 0; let d = new Date(); let str = getDateString(d); let entry = globalData.dailyLogs?.[str]; let doneArr = [];
+    if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
+    if (doneArr.includes(habitId)) streak++;
+    while (true) {
+        d.setDate(d.getDate() - 1); str = getDateString(d); entry = globalData.dailyLogs?.[str]; doneArr = [];
+        if (Array.isArray(entry)) doneArr = entry; else doneArr = entry?.habits || [];
+        if (doneArr.includes(habitId)) streak++; else break;
+    }
+    return streak;
+}
+
+window.openTagManager = () => { editingTagIndex = null; document.getElementById('newTagName').value = ''; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); document.getElementById('tagModal').style.display = 'flex'; }
+function renderTagsList() { const list = document.getElementById('tagsList'); list.innerHTML = ''; (globalData.tags || []).forEach((t, idx) => { list.innerHTML += `<div class="tag-row"><div><span class="color-dot" style="background:${t.color}"></span>${t.name}</div><div><button class="btn-icon-minimal" onclick="editTag(${idx})"><span class="material-icons-round">edit</span></button><button class="btn-icon-minimal btn-delete" onclick="deleteTag(${idx})"><span class="material-icons-round">delete</span></button></div></div>`; }); }
+window.editTag = (idx) => { const t = globalData.tags[idx]; document.getElementById('newTagName').value = t.name; document.getElementById('newTagColor').value = t.color; editingTagIndex = idx; document.getElementById('btnSaveTag').innerText = "Aggiorna Tag"; }
+window.saveTagManager = async () => { const name = document.getElementById('newTagName').value; const color = document.getElementById('newTagColor').value; if(!name) return; let tags = globalData.tags || []; if (editingTagIndex !== null) { tags[editingTagIndex].name = name; tags[editingTagIndex].color = color; } else { tags.push({ id: Date.now().toString(), name, color }); } const ref = doc(db, "users", currentUser); await updateDoc(ref, { tags: tags }); document.getElementById('newTagName').value = ''; editingTagIndex = null; document.getElementById('btnSaveTag').innerText = "Crea Tag"; renderTagsList(); showToast("Tag salvato", "🏷️"); }
+window.deleteTag = async (idx) => { if(!confirm("Eliminare tag?")) return; const tags = globalData.tags; tags.splice(idx, 1); await updateDoc(doc(db, "users", currentUser), { tags }); renderTagsList(); }
+window.archiveFromEdit = () => { if(!editingItem) return; archiveItem(editingType === 'habit' ? 'habits' : 'rewards', editingItem.id); document.getElementById('editModal').style.display = 'none'; }
+window.archiveItem = (list, id) => { pendingArchiveId = { list, id }; document.getElementById('archiveDate').value = new Date().toISOString().split('T')[0]; document.getElementById('archiveModal').style.display = 'flex'; }
+window.confirmArchive = async () => { if(!pendingArchiveId) return; const date = document.getElementById('archiveDate').value; const { list, id } = pendingArchiveId; const ref = doc(db, "users", currentUser); const arr = globalData[list]; const idx = arr.findIndex(i => i.id === id); if (idx > -1) { arr[idx].archivedAt = date; await updateDoc(ref, { [list]: arr }); showToast("Archiviato", "📦"); } document.getElementById('archiveModal').style.display = 'none'; }
+window.exportData = async () => { vibrate('light'); showToast("Backup...", "⏳"); try { const usersCol = collection(db, 'users'); const userSnapshot = await getDocs(usersCol); let backupData = {}; userSnapshot.forEach(doc => { backupData[doc.id] = doc.data(); }); const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); const date = new Date().toISOString().slice(0,10); downloadAnchorNode.setAttribute("download", `GLP_Backup_${date}.json`); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); showToast("Fatto!", "✅"); } catch (e) { console.error(e); showToast("Errore", "❌"); } };
+window.importData = (files) => { if (files.length === 0) return; const file = files[0]; const reader = new FileReader(); reader.onload = async (e) => { try { const backupData = JSON.parse(e.target.result); if (!confirm("Sovrascrivere?")) { document.getElementById('importFile').value = ''; return; } showToast("Ripristino...", "⏳"); for (const userId in backupData) { if (backupData.hasOwnProperty(userId)) await setDoc(doc(db, "users", userId), backupData[userId]); } showToast("Fatto!", "✅"); setTimeout(() => location.reload(), 1500); } catch (err) { console.error(err); showToast("File non valido", "❌"); } document.getElementById('importFile').value = ''; }; reader.readAsText(file); };
+window.hardReset = async () => { const code = prompt("Scrivi RESET:"); if(code === "RESET") { await deleteDoc(doc(db, "users", currentUser)); location.reload(); } };
+function applyTheme(user) { const root = document.documentElement; if (user === 'flavio') { root.style.setProperty('--theme-color', '#ffca28'); root.style.setProperty('--theme-glow', 'rgba(255, 202, 40, 0.3)'); document.getElementById('avatar-initial').innerText = 'F'; document.getElementById('username-display').innerText = 'Flavio'; } else { root.style.setProperty('--theme-color', '#d05ce3'); root.style.setProperty('--theme-glow', 'rgba(208, 92, 227, 0.3)'); document.getElementById('avatar-initial').innerText = 'S'; document.getElementById('username-display').innerText = 'Simona'; } document.getElementById('card-flavio').classList.remove('active'); document.getElementById('card-simona').classList.remove('active'); document.getElementById(`card-${user}`).classList.add('active'); }
+window.switchUser = (u) => { if(currentUser === u) return; currentUser = u; localStorage.setItem('glp_user', u); applyTheme(u); vibrate('light'); location.reload(); }
+async function logHistory(user, score) { const ref = doc(db, "users", user); const hist = globalData.history || []; hist.push({date: new Date().toISOString(), score}); if(hist.length > 500) hist.shift(); await updateDoc(ref, { history: hist }); }
+
+// --- FUNZIONE CERCHIO PERCENTUALE ---
+function updateProgressCircle(earned, total) {
+    const circle = document.getElementById('prog-circle');
+    const text = document.getElementById('prog-text');
+    if (!circle || !text) return;
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    let percent = 0;
+    if (total > 0) percent = (earned / total) * 100;
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    const offset = circumference - (percent / 100) * circumference;
+    circle.style.strokeDashoffset = offset;
+    text.innerText = Math.round(percent) + '%';
+}
+
+// --- FUNZIONE GRAFICO HOMEPAGE (Ultimi 10 GG) ---
+function updateMultiChart() { 
+    const ctx = document.getElementById('progressChart');
+    if(!ctx) return;
+    
+    // Se i dati non sono pronti, esci
+    if(!allUsersData.flavio || !allUsersData.simona) return;
+
+    const context = ctx.getContext('2d'); 
+    const labels = []; 
+    const dates = []; 
+    
+    // Ultimi 10 giorni
+    for(let i=9; i>=0; i--) { 
+        const d = new Date(); 
+        d.setDate(d.getDate() - i); 
+        dates.push(d.toISOString().split('T')[0]); 
+        labels.push(`${d.getDate()}/${d.getMonth()+1}`); 
+    } 
+
+    const getDailyNetPoints = (userData) => { 
+        if(!userData || !userData.dailyLogs) return new Array(10).fill(0); 
+        return dates.map(date => { 
+            const entry = userData.dailyLogs[date]; 
+            if(!entry) return 0; 
+            
+            let doneArr = [], failedArr = [], purchases = []; 
+            if (Array.isArray(entry)) { doneArr = entry; } 
+            else { 
+                doneArr = entry.habits || []; 
+                failedArr = entry.failedHabits || []; 
+                purchases = entry.purchases || []; 
+            } 
+            
+            let net = 0; 
+            // Calcolo Guadagni
+            doneArr.forEach(hId => { 
+                const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); 
+                if(h) { 
+                    const isM = window.getItemValueAtDate(h, 'isMulti', date); 
+                    const rMin = window.getItemValueAtDate(h, 'rewardMin', date); 
+                    const rMax = window.getItemValueAtDate(h, 'reward', date); 
+                    let lvl = (entry.habitLevels || {})[hId] || 'max'; 
+                    if(isM && lvl === 'min') net += rMin; else net += rMax; 
+                } 
+            }); 
+            // Calcolo Penalità
+            failedArr.forEach(hId => { 
+                const h = userData.habits.find(h => (h.id || h.name.replace(/[^a-zA-Z0-9]/g, '')) === hId); 
+                if(h) net -= window.getItemValueAtDate(h, 'penalty', date); 
+            }); 
+            // Calcolo Spese
+            let spent = purchases.reduce((acc, p) => acc + parseInt(p.cost), 0); 
+            
+            return net - spent; 
+        }); 
+    }; 
+
+    const flavioPoints = getDailyNetPoints(allUsersData.flavio); 
+    const simonaPoints = getDailyNetPoints(allUsersData.simona); 
+
+    if(chartInstance) chartInstance.destroy(); 
+    
+    chartInstance = new Chart(context, { 
+        type: 'line', 
+        data: { 
+            labels: labels, 
+            datasets: [ 
+                { label: 'Flavio', data: flavioPoints, borderColor: '#ffca28', backgroundColor: 'rgba(255, 202, 40, 0.1)', fill:true, tension: 0.3, pointRadius: 3, borderWidth: 2 }, 
+                { label: 'Simona', data: simonaPoints, borderColor: '#d05ce3', backgroundColor: 'rgba(208, 92, 227, 0.1)', fill:true, tension: 0.3, pointRadius: 3, borderWidth: 2 } 
+            ] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            animation: false, // Disabilito animazione per massime prestazioni
+            plugins: { legend: { display: false } }, // Legenda nascosta per pulizia
+            scales: { 
+                y: { grid: { color: '#333' }, ticks: { color: '#666', font:{size:10} }, beginAtZero: true }, 
+                x: { grid: { display: false }, ticks: { color: '#666', font:{size:10} } } 
+            } 
+        } 
+    }); 
+}
+
+// --- FUNZIONE PER GESTIONE CLICK STABILI ---
+function setupListListeners() {
+    const list = document.getElementById('habitList');
+    if(!list) return;
+
+    list.addEventListener('click', (e) => {
+        // Cerchiamo se il click è avvenuto su un bottone o un suo figlio (icona)
+        const btn = e.target.closest('.btn-status');
+        const editBtn = e.target.closest('.btn-edit-habit'); // Per la matita
+
+        // CASO 1: Click sulla spunta (Fatto/Min/Fail)
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation(); // Ferma altri eventi
+            
+            const id = btn.dataset.id;
+            const action = btn.dataset.action; // 'next' o 'failed'
+            const penalty = parseInt(btn.dataset.penalty || 0);
+            
+            if(id && action) {
+                setHabitStatus(id, action, penalty);
+            }
+        }
+        
+        // CASO 2: Click sulla matita (Edit)
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = editBtn.dataset.id;
+            if(id) openEditModal(id, 'habit');
+        }
+    });
+
+    // LISTENER PER LISTA IF/SE (che è separata)
+    const ifList = document.getElementById('ifList');
+    if(ifList) {
+        ifList.addEventListener('click', (e) => {
+             const btn = e.target.closest('.btn-status');
+             const editBtn = e.target.closest('.btn-edit-habit'); 
+             if (btn) {
+                e.preventDefault(); e.stopPropagation();
+                setHabitStatus(btn.dataset.id, btn.dataset.action, parseInt(btn.dataset.penalty||0));
+             }
+             if (editBtn) {
+                e.preventDefault(); e.stopPropagation();
+                openEditModal(editBtn.dataset.id, 'habit');
+             }
+        });
+    }
+}
